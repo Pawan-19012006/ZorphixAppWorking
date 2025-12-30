@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList, Event } from '../navigation/types';
+import { syncFromFirebase, syncOnspotToFirebase } from '../services/SyncService';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -59,8 +60,18 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         }
     };
 
-    const handleSync = () => {
-        Alert.alert("Sync", "Sync with Firebase is coming soon!");
+    const handleSync = async () => {
+        try {
+            // 1. Pull latest data
+            await syncFromFirebase();
+
+            // 2. Push offline records
+            const uploadedCount = await syncOnspotToFirebase();
+
+            Alert.alert("Sync Complete", `Data updated.\nUploaded ${uploadedCount} on-spot registrations.`);
+        } catch (error) {
+            Alert.alert("Sync Error", "Failed to sync with server. Check internet connection.");
+        }
     };
 
     const renderEventItem = ({ item }: { item: Event }) => (

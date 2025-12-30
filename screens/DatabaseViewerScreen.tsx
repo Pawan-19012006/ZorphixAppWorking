@@ -1,16 +1,28 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getUsers, User } from '../services/Database';
+import { getAllParticipants } from '../services/sqlite';
+
+// Define the Participant type matching the SQLite schema
+type Participant = {
+    uid: string;
+    event_id: string;
+    name: string;
+    phone: string;
+    email: string;
+    checked_in: number;
+    checkin_time: string | null;
+    source: string;
+    sync_status: number;
+};
 
 export default function DatabaseViewerScreen() {
-    const [users, setUsers] = useState<User[]>([]);
+    const [users, setUsers] = useState<Participant[]>([]);
     const [refreshing, setRefreshing] = useState(false);
 
     const loadData = async () => {
         try {
-            const data = await getUsers();
-            // @ts-ignore - DB types mismatch handling
+            const data = await getAllParticipants();
             setUsers(data);
         } catch (error) {
             console.error(error);
@@ -29,29 +41,33 @@ export default function DatabaseViewerScreen() {
         setRefreshing(false);
     }, []);
 
-    const renderItem = ({ item }: { item: User }) => (
+    const renderItem = ({ item }: { item: Participant }) => (
         <View style={styles.card}>
             <View style={styles.row}>
                 <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.time}>{new Date(item.created_at).toLocaleDateString()}</Text>
+                <View style={[styles.badge, item.checked_in ? styles.badgeChecked : styles.badgeUnchecked]}>
+                    <Text style={styles.badgeText}>{item.checked_in ? 'Verified' : 'Pending'}</Text>
+                </View>
             </View>
-            <Text style={styles.detail}>{item.email}</Text>
-            <Text style={styles.detail}>{item.phone}</Text>
+            <Text style={styles.detail}>UID: {item.uid}</Text>
+            <Text style={styles.detail}>Event: {item.event_id}</Text>
+            <Text style={styles.detail}>Email: {item.email}</Text>
+            <Text style={styles.meta}>Source: {item.source} • Sync: {item.sync_status ? 'Synced' : 'Pending'}</Text>
         </View>
     );
 
     return (
         <View style={styles.container}>
-            <Text style={styles.header}>Registered Users</Text>
+            <Text style={styles.header}>All Participants</Text>
             <FlatList
                 data={users}
                 renderItem={renderItem}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.uid}
                 contentContainerStyle={styles.list}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />
                 }
-                ListEmptyComponent={<Text style={styles.emptyText}>No users found.</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>No synced data found.</Text>}
             />
         </View>
     );
@@ -83,24 +99,46 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 5
     },
     name: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: 'white'
-    },
-    time: {
-        fontSize: 12,
-        color: '#888'
+        color: 'white',
+        flex: 1
     },
     detail: {
         color: '#ccc',
-        fontSize: 14
+        fontSize: 14,
+        marginTop: 2
+    },
+    meta: {
+        color: '#666',
+        fontSize: 12,
+        marginTop: 5,
+        fontStyle: 'italic'
     },
     emptyText: {
         color: '#666',
         textAlign: 'center',
         marginTop: 50
+    },
+    badge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        marginLeft: 8
+    },
+    badgeChecked: {
+        backgroundColor: '#006400' // Dark Green
+    },
+    badgeUnchecked: {
+        backgroundColor: '#8B0000' // Dark Red
+    },
+    badgeText: {
+        color: 'white',
+        fontSize: 10,
+        fontWeight: 'bold'
     }
 });

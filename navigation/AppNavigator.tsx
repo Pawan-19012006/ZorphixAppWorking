@@ -1,5 +1,6 @@
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { Platform } from 'react-native';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
@@ -12,21 +13,29 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
     return (
-        <Stack.Navigator initialRouteName="Login" screenOptions={{
-            headerStyle: {
-                backgroundColor: '#000000',
-                shadowColor: 'transparent',
-                elevation: 0,
-                borderBottomWidth: 1,
-                borderBottomColor: '#333'
-            },
-            headerTintColor: '#FFD700',
-            headerTitleStyle: {
-                fontWeight: 'bold',
-                fontSize: 20,
-            },
-            cardStyle: { backgroundColor: '#000000' }
-        }}>
+        <Stack.Navigator
+            initialRouteName="Login"
+            screenOptions={{
+                headerStyle: {
+                    backgroundColor: '#000000',
+                    shadowColor: 'transparent',
+                    elevation: 0,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#333'
+                },
+                headerTintColor: '#FFD700',
+                headerTitleStyle: {
+                    fontWeight: 'bold',
+                    fontSize: 20,
+                },
+                cardStyle: { backgroundColor: '#000000' },
+                detachInactiveScreens: false,
+                ...(Platform.OS === 'web' && {
+                    animationEnabled: false,
+                    cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+                }),
+            }}
+        >
             <Stack.Screen
                 name="Login"
                 component={LoginScreen}
@@ -37,7 +46,8 @@ const AppNavigator = () => {
                 component={HomeScreen}
                 options={{
                     title: 'Zorphix',
-                    headerLeft: () => null
+                    headerLeft: () => null,
+                    gestureEnabled: false
                 }}
             />
             <Stack.Screen

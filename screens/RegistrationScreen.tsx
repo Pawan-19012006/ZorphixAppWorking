@@ -22,12 +22,31 @@ const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
         }
 
         try {
-            await addUser(name, email, phone);
-            Alert.alert('Success', 'User registered successfully!', [
+            // Generate a temporary event ID (or pass securely)
+            // For now, hardcoding an event ID since it wasn't passed via params
+            // Ideally, this screen should receive eventId via route.params
+            const eventId = "EVENT-001";
+
+            // Generate pseudo-unique ID for offline use
+            const uid = `${eventId}-ONSPOT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+            await insertParticipant(
+                uid,
+                eventId,
+                name,
+                phone,
+                email,
+                'ONSPOT', // Source
+                0,        // Sync status: 0 (Not synced)
+                1         // Checked in: 1 (Yes, since they are here)
+            );
+
+            Alert.alert('Success', 'User registered ON-SPOT!', [
                 { text: 'OK', onPress: () => navigation.goBack() }
             ]);
         } catch (error) {
-            Alert.alert('Error', 'Failed to save user data.');
+            Alert.alert('Error', 'Failed to save user data locally.');
+            console.error(error);
         }
     };
 

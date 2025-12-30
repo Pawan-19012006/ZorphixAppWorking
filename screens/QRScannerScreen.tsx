@@ -3,6 +3,7 @@ import { Text, View, StyleSheet, Button, Alert, TouchableOpacity } from 'react-n
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+import { getParticipantByUID, markCheckedIn } from '../services/Database';
 
 type QRScannerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'QRScanner'>;
 
@@ -37,13 +38,35 @@ export default function QRScannerScreen({ navigation }: Props) {
             <CameraView
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
-                onBarcodeScanned={scanned ? undefined : ({ type, data }) => {
+                onBarcodeScanned={scanned ? undefined : async ({ type, data }) => {
                     setScanned(true);
-                    Alert.alert(
-                        "Scanned!",
-                        `Type: ${type}\nData: ${data}`,
-                        [{ text: "OK", onPress: () => setScanned(false) }]
-                    );
+
+                    try {
+                        // 1. Check local SQLite DB
+                        const participant = await getParticipantByUID(data); // data is the UID
+
+                        if (!participant) {
+                            Alert.alert("Not Registered", "No record found for this code.");
+                            return;
+                        }
+
+                        // 2. Check if already verified
+                        if (participant.checked_in === 1) {
+                            Alert.alert(
+                                "Already Verified",
+                                `Participant: ${participant.name}\nSource: ${participant.source}\nStatus: Verified`
+                            );
+                            return;
+                        }
+
+                        // 3. Mark as checked in
+                        markCheckedIn(participant.uid);
+                        Alert.alert("Success", `Checked in: ${participant.name}`);
+
+                    } catch (error) {
+                        console.error(error);
+                        Alert.alert("Error", "Failed to verify code.");
+                    }
                 }}
             />
 
