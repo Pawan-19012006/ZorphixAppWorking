@@ -13,4 +13,5 @@ export type RootStackParamList = {
     Registration: undefined;
     QRScanner: undefined;
     DatabaseViewer: undefined;
+    RecentRegistrations: undefined;
 };

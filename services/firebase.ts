@@ -2,12 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, initializeFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDkW692RAux_2An3zXkXUzzzfGb5i31AJU",
-    authDomain: "zorphix-sync-test.firebaseapp.com",
-    projectId: "zorphix-sync-test",
-    storageBucket: "zorphix-sync-test.firebasestorage.app",
-    messagingSenderId: "1036642648512",
-    appId: "1:1036642648512:web:5716a2c677fda919224825"
+    apiKey: "AIzaSyBefhLPabmf4yo3RI-eCO7nAGhAq0dzZ1E",
+    authDomain: "zorphix-26.firebaseapp.com",
+    projectId: "zorphix-26",
+    storageBucket: "zorphix-26.firebasestorage.app",
+    messagingSenderId: "481146604346",
+    appId: "1:481146604346:web:d40a55b61892b26742de03",
+    measurementId: "G-QYQM2MM3W0"
 };
 
 const app = initializeApp(firebaseConfig);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Alert, Dimensions, Animated, Easing } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList, Event } from '../navigation/types';
 import { syncFromFirebase, syncOnspotToFirebase } from '../services/SyncService';
@@ -50,7 +50,27 @@ const DUMMY_EVENTS: Event[] = [
     },
 ];
 
+const { width, height } = Dimensions.get('window');
+
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
+    const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+    const slideAnim = React.useRef(new Animated.Value(-width * 0.75)).current; // Start hidden (left)
+
+    const toggleMenu = () => {
+        const toValue = isMenuOpen ? -width * 0.75 : 0;
+        Animated.timing(slideAnim, {
+            toValue,
+            duration: 300,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.ease),
+        }).start();
+        setIsMenuOpen(!isMenuOpen);
+    };
+
+    const closeMenu = () => {
+        if (isMenuOpen) toggleMenu();
+    };
+
     const getCategoryColor = (category: string) => {
         switch (category) {
             case 'Technical': return '#B8860B'; // Dark Golden Rod
@@ -61,6 +81,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleSync = async () => {
+        closeMenu();
         try {
             // 1. Pull latest data
             await syncFromFirebase();
@@ -77,7 +98,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const renderEventItem = ({ item }: { item: Event }) => (
         <TouchableOpacity
             style={styles.card}
-            onPress={() => navigation.navigate('EventDetail', { event: item })}
+            onPress={() => { closeMenu(); navigation.navigate('EventDetail', { event: item }); }}
+            activeOpacity={0.9}
         >
             <View style={styles.cardHeader}>
                 <Text style={styles.eventTitle}>{item.title}</Text>
@@ -92,22 +114,58 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#000000" />
-            <View style={styles.actionContainer}>
-                <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('DatabaseViewer')}>
-                    <Text style={styles.actionButtonText}>View Database</Text>
+
+            {/* Header with Menu Button */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={toggleMenu} style={styles.menuButton}>
+                    <View style={styles.menuLine} />
+                    <View style={styles.menuLine} />
+                    <View style={styles.menuLine} />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, styles.syncButton]} onPress={handleSync}>
-                    <Text style={styles.actionButtonText}>Sync Data</Text>
-                </TouchableOpacity>
+                <Text style={styles.headerTitle}>ZORPHIX</Text>
             </View>
 
-            <FlatList
-                data={DUMMY_EVENTS}
-                renderItem={renderEventItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+            {/* Main Content */}
+            <TouchableOpacity activeOpacity={1} onPress={closeMenu} style={{ flex: 1 }}>
+                <FlatList
+                    data={DUMMY_EVENTS}
+                    renderItem={renderEventItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={true}
+                    persistentScrollbar={true}
+                    indicatorStyle="white"
+                />
+            </TouchableOpacity>
+
+            {/* Side Dashboard (Menu) */}
+            <Animated.View style={[
+                styles.sideMenu,
+                { transform: [{ translateX: slideAnim }] }
+            ]}>
+                <View style={styles.menuHeader}>
+                    <Text style={styles.menuTitle}>Dashboard</Text>
+                </View>
+
+                <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('DatabaseViewer'); }}>
+                    <Text style={styles.menuItemText}>📂  View Full Database</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('RecentRegistrations'); }}>
+                    <Text style={[styles.menuItemText, { color: '#FFD700' }]}>🆕  Newly Added Students</Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity style={styles.menuItem} onPress={handleSync}>
+                    <Text style={styles.menuItemText}>🔄  Sync Data</Text>
+                </TouchableOpacity>
+            </Animated.View>
+
+            {/* Overlay for closing menu when open */}
+            {isMenuOpen && (
+                <TouchableOpacity style={styles.overlay} onPress={toggleMenu} activeOpacity={1} />
+            )}
         </View>
     );
 };
@@ -117,28 +175,32 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000000',
     },
-    actionContainer: {
+    header: {
         flexDirection: 'row',
-        padding: 16,
-        justifyContent: 'space-between'
-    },
-    actionButton: {
-        flex: 1,
-        backgroundColor: '#111',
-        borderWidth: 1,
-        borderColor: '#FFD700',
-        padding: 10,
-        borderRadius: 8,
         alignItems: 'center',
-        marginRight: 10
+        paddingHorizontal: 20,
+        paddingTop: 50, // Safe area top
+        paddingBottom: 20,
+        backgroundColor: '#000',
+        borderBottomWidth: 1,
+        borderBottomColor: '#222'
     },
-    syncButton: {
-        marginRight: 0,
-        marginLeft: 10
-    },
-    actionButtonText: {
+    headerTitle: {
         color: '#FFD700',
-        fontWeight: 'bold'
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginLeft: 20,
+        letterSpacing: 2
+    },
+    menuButton: {
+        padding: 5
+    },
+    menuLine: {
+        width: 25,
+        height: 3,
+        backgroundColor: '#FFF',
+        marginBottom: 5,
+        borderRadius: 2
     },
     listContent: {
         padding: 16,
@@ -150,10 +212,6 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         borderWidth: 1,
         borderColor: '#333',
-        shadowColor: '#FFD700',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
         elevation: 2,
     },
     cardHeader: {
@@ -184,6 +242,60 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#888',
     },
+
+    // Side Menu Styles
+    sideMenu: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: width * 0.75,
+        backgroundColor: '#111',
+        zIndex: 100,
+        paddingTop: 60,
+        paddingHorizontal: 20,
+        borderRightWidth: 1,
+        borderRightColor: '#333',
+        shadowColor: "#000",
+        shadowOffset: { width: 5, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 10,
+        elevation: 10
+    },
+    menuHeader: {
+        marginBottom: 40,
+        borderBottomWidth: 1,
+        borderBottomColor: '#333',
+        paddingBottom: 20
+    },
+    menuTitle: {
+        color: '#FFF',
+        fontSize: 24,
+        fontWeight: 'bold'
+    },
+    menuItem: {
+        paddingVertical: 15,
+        marginBottom: 10
+    },
+    menuItemText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '500'
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#333',
+        marginVertical: 20
+    },
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        zIndex: 90
+    }
 });
 
 export default HomeScreen;

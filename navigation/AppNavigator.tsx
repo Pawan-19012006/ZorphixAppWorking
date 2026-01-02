@@ -7,6 +7,7 @@ import EventDetailScreen from '../screens/EventDetailScreen';
 import RegistrationScreen from '../screens/RegistrationScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import DatabaseViewerScreen from '../screens/DatabaseViewerScreen';
+import RecentRegistrationsScreen from '../screens/RecentRegistrationsScreen';
 import { RootStackParamList } from './types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -69,6 +70,11 @@ const AppNavigator = () => {
                 name="DatabaseViewer"
                 component={DatabaseViewerScreen}
                 options={{ title: 'Local Database' }}
+            />
+            <Stack.Screen
+                name="RecentRegistrations"
+                component={RecentRegistrationsScreen}
+                options={{ title: 'Newly Added' }}
             />
         </Stack.Navigator>
     );

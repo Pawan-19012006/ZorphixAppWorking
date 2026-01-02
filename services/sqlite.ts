@@ -29,7 +29,11 @@ const saveWebData = () => {
 // Use a mocked DB for web to prevent crashes
 let db: any = null;
 if (Platform.OS !== 'web') {
-    db = SQLite.openDatabase(DB_NAME);
+    try {
+        db = SQLite.openDatabaseSync(DB_NAME);
+    } catch (e) {
+        console.error("Failed to open database", e);
+    }
 }
 
 // Initialize the database table
@@ -40,8 +44,8 @@ export const initParticipantDB = () => {
     }
     if (!db) return;
 
-    db.transaction((tx: any) => {
-        tx.executeSql(
+    try {
+        db.execSync(
             `CREATE TABLE IF NOT EXISTS participants (
                 uid TEXT PRIMARY KEY,
                 event_id TEXT,
@@ -54,7 +58,9 @@ export const initParticipantDB = () => {
                 sync_status INTEGER DEFAULT 1
             );`
         );
-    });
+    } catch (e) {
+        console.error("Failed to init DB", e);
+    }
 };
 
 // Insert a participant (INSERT OR IGNORE to prevent duplicates)
@@ -80,39 +86,36 @@ export const insertParticipant = (
     }
     if (!db) return;
 
-    db.transaction((tx: any) => {
-        tx.executeSql(
+    try {
+        db.runSync(
             `INSERT OR IGNORE INTO participants 
             (uid, event_id, name, phone, email, source, sync_status, checked_in) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
             [uid, event_id, name, phone, email, source, sync_status, checked_in]
         );
-    });
+    } catch (e) {
+        console.error("Insert failed", e);
+    }
 };
 
 // Get participant by UID for QR verification
-export const getParticipantByUID = (uid: string): Promise<any> => {
+export const getParticipantByUID = async (uid: string): Promise<any> => {
     if (Platform.OS === 'web') {
         const p = webParticipants.find(p => p.uid === uid);
-        return Promise.resolve(p || null);
+        return p || null;
     }
-    if (!db) return Promise.resolve(null);
+    if (!db) return null;
 
-    return new Promise((resolve, reject) => {
-        db.transaction((tx: any) => {
-            tx.executeSql(
-                `SELECT * FROM participants WHERE uid = ?;`,
-                [uid],
-                (_: any, { rows }: any) => {
-                    resolve(rows.length > 0 ? rows.item(0) : null);
-                },
-                (_: any, error: any) => {
-                    reject(error);
-                    return false;
-                }
-            );
-        });
-    });
+    try {
+        const result = db.getFirstSync(
+            `SELECT * FROM participants WHERE uid = ?;`,
+            [uid]
+        );
+        return result || null;
+    } catch (e) {
+        console.error("Get participant failed", e);
+        return null;
+    }
 };
 
 // Mark participant as checked in
@@ -129,44 +132,34 @@ export const markCheckedIn = (uid: string) => {
     if (!db) return;
 
     const timestamp = new Date().toISOString();
-    db.transaction((tx: any) => {
-        tx.executeSql(
+    try {
+        db.runSync(
             `UPDATE participants 
              SET checked_in = 1, checkin_time = ? 
              WHERE uid = ?;`,
             [timestamp, uid]
         );
-    });
+    } catch (e) {
+        console.error("Check-in failed", e);
+    }
 };
 
 // Get all unsynced ONSPOT registrations for post-event sync
-export const getUnsyncedOnspot = (): Promise<any[]> => {
+export const getUnsyncedOnspot = async (): Promise<any[]> => {
     if (Platform.OS === 'web') {
         const unsynced = webParticipants.filter(p => p.source === 'ONSPOT' && p.sync_status === 0);
-        return Promise.resolve(unsynced);
+        return unsynced;
     }
-    if (!db) return Promise.resolve([]);
+    if (!db) return [];
 
-    return new Promise((resolve, reject) => {
-        db.transaction((tx: any) => {
-            tx.executeSql(
-                `SELECT * FROM participants WHERE source = 'ONSPOT' AND sync_status = 0;`,
-                [],
-                (_: any, { rows }: any) => {
-                    // Convert to array
-                    let items = [];
-                    for (let i = 0; i < rows.length; i++) {
-                        items.push(rows.item(i));
-                    }
-                    resolve(items);
-                },
-                (_: any, error: any) => {
-                    reject(error);
-                    return false;
-                }
-            );
-        });
-    });
+    try {
+        return db.getAllSync(
+            `SELECT * FROM participants WHERE source = 'ONSPOT' AND sync_status = 0;`
+        );
+    } catch (e) {
+        console.error("Get unsynced failed", e);
+        return [];
+    }
 };
 
 export const markSynced = (uid: string) => {
@@ -180,38 +173,47 @@ export const markSynced = (uid: string) => {
     }
     if (!db) return;
 
-    db.transaction((tx: any) => {
-        tx.executeSql(
+    try {
+        db.runSync(
             `UPDATE participants SET sync_status = 1 WHERE uid = ?;`,
             [uid]
         );
-    });
+    } catch (e) {
+        console.error("Mark synced failed", e);
+    }
 };
 
 // Get all participants for the viewer
-export const getAllParticipants = (): Promise<any[]> => {
+export const getAllParticipants = async (): Promise<any[]> => {
     if (Platform.OS === 'web') {
-        return Promise.resolve([...webParticipants]);
+        return [...webParticipants];
     }
-    if (!db) return Promise.resolve([]);
+    if (!db) return [];
 
-    return new Promise((resolve, reject) => {
-        db.transaction((tx: any) => {
-            tx.executeSql(
-                `SELECT * FROM participants ORDER BY name ASC;`,
-                [],
-                (_: any, { rows }: any) => {
-                    let items = [];
-                    for (let i = 0; i < rows.length; i++) {
-                        items.push(rows.item(i));
-                    }
-                    resolve(items);
-                },
-                (_: any, error: any) => {
-                    reject(error);
-                    return false;
-                }
-            );
-        });
-    });
+    try {
+        return db.getAllSync(
+            `SELECT * FROM participants ORDER BY name ASC;`
+        );
+    } catch (e) {
+        console.error("Get all failed", e);
+        return [];
+    }
+};
+
+// Get strictly locally added participants (Newly Added)
+export const getOnSpotParticipants = async (): Promise<any[]> => {
+    if (Platform.OS === 'web') {
+        const local = webParticipants.filter(p => p.source === 'ONSPOT');
+        return local;
+    }
+    if (!db) return [];
+
+    try {
+        return await db.getAllSync(
+            `SELECT * FROM participants WHERE source = 'ONSPOT' ORDER BY rowid DESC;`
+        );
+    } catch (e) {
+        console.error("Get onspot failed", e);
+        return [];
+    }
 };

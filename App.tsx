@@ -4,19 +4,19 @@ import { enableScreens } from 'react-native-screens';
 
 if (Platform.OS === 'web') {
     enableScreens(false);
-    
+
     // Patch removeChild to suppress React 19 DOM errors
     if (typeof window !== 'undefined') {
         const originalRemoveChild = Element.prototype.removeChild;
-        Element.prototype.removeChild = function<T extends Node>(child: T): T {
+        Element.prototype.removeChild = function <T extends Node>(child: T): T {
             if (child.parentNode === this) {
-                return originalRemoveChild.call(this, child);
+                return originalRemoveChild.call(this, child) as T;
             }
             // Silently ignore if not a child
             return child;
         };
     }
-    
+
     // Suppress console errors
     const originalError = console.error;
     console.error = (...args: any[]) => {
@@ -40,6 +40,7 @@ import { StatusBar } from 'expo-status-bar';
 import { registerRootComponent } from 'expo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, Text } from 'react-native';
+import { initParticipantDB } from './services/sqlite';
 
 // Error Boundary
 interface ErrorBoundaryProps {
@@ -80,6 +81,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 function App() {
+    React.useEffect(() => {
+        initParticipantDB();
+    }, []);
+
     return (
         <ErrorBoundary>
             <GestureHandlerRootView style={styles.container}>
