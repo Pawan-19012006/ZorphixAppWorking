@@ -131,12 +131,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Header with Menu Button */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={toggleMenu} style={styles.menuButton}>
-                    <View style={styles.menuLine} />
-                    <View style={styles.menuLine} />
-                    <View style={styles.menuLine} />
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={toggleMenu} style={styles.menuButton}>
+                        <View style={styles.menuLine} />
+                        <View style={styles.menuLine} />
+                        <View style={styles.menuLine} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>ZORPHIX</Text>
+                </View>
+                <TouchableOpacity onPress={handleSync} style={styles.syncButton}>
+                    <Text style={styles.syncIcon}>🔄</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>ZORPHIX</Text>
             </View>
 
             {/* Main Content */}
@@ -168,12 +173,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('RecentRegistrations'); }}>
                     <Text style={[styles.menuItemText, { color: '#FFD700' }]}>🆕  Newly Added Students</Text>
                 </TouchableOpacity>
-
-                <View style={styles.divider} />
-
-                <TouchableOpacity style={styles.menuItem} onPress={handleSync}>
-                    <Text style={styles.menuItemText}>🔄  Sync Data</Text>
-                </TouchableOpacity>
             </Animated.View>
 
             {/* Overlay for closing menu when open */}
@@ -192,6 +191,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingTop: 50, // Safe area top
         paddingBottom: 20,
@@ -208,6 +208,12 @@ const styles = StyleSheet.create({
     },
     menuButton: {
         padding: 5
+    },
+    syncButton: {
+        padding: 5,
+    },
+    syncIcon: {
+        fontSize: 24,
     },
     menuLine: {
         width: 25,
