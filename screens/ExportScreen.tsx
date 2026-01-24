@@ -13,7 +13,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
-import { exportLocalData, getExportSummary } from '../services/ExportService';
+import { exportLocalData, getExportSummary, exportToExcel } from '../services/ExportService';
 
 type ExportScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Export'>;
 
@@ -86,6 +86,19 @@ const ExportScreen: React.FC<Props> = ({ navigation }) => {
                 }
             ]
         );
+    };
+
+    const handleExcelExport = async () => {
+        setLoading(true);
+        try {
+            await exportToExcel();
+            // Sharing dialog handles the rest
+        } catch (error: any) {
+            console.log(error);
+            Alert.alert('Excel Export Failed', error.message || 'Failed to generate Excel file');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -165,13 +178,13 @@ const ExportScreen: React.FC<Props> = ({ navigation }) => {
                     <View style={styles.placeholder}>
                         <Text style={styles.placeholderIcon}>📤</Text>
                         <Text style={styles.placeholderText}>
-                            Tap "Generate QR Codes" to export local emails
+                            Choose an export method below
                         </Text>
                     </View>
                 )}
             </ScrollView>
 
-            {/* Export Button */}
+            {/* Export Buttons */}
             {qrDataArray.length === 0 && (
                 <View style={styles.bottomButton}>
                     <TouchableOpacity
@@ -184,6 +197,14 @@ const ExportScreen: React.FC<Props> = ({ navigation }) => {
                         ) : (
                             <Text style={styles.exportButtonText}>Generate QR Codes</Text>
                         )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.exportButton, styles.excelButton, loading && styles.exportButtonDisabled]}
+                        onPress={handleExcelExport}
+                        disabled={loading}
+                    >
+                        <Text style={styles.excelButtonText}>Export to Excel</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -338,6 +359,15 @@ const styles = StyleSheet.create({
     },
     exportButtonText: {
         color: '#000',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    excelButton: {
+        backgroundColor: '#2E7D32', // Green for Excel
+        marginTop: 12,
+    },
+    excelButtonText: {
+        color: '#FFF',
         fontSize: 16,
         fontWeight: 'bold',
     },

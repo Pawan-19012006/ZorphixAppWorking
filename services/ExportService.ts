@@ -1,4 +1,7 @@
 import { getAllParticipants } from './sqlite';
+import * as XLSX from 'xlsx';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 // QR code size limits (in characters for safe encoding)
 const MAX_QR_SIZE = 1800; // Safe limit for reliable QR scanning
@@ -80,9 +83,7 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
     }
 };
 
-/**
- * Get summary of exportable data
- */
+// ... (previous content)
 export const getExportSummary = async (): Promise<{
     totalParticipants: number;
     totalEmails: number;
@@ -101,5 +102,50 @@ export const getExportSummary = async (): Promise<{
             totalParticipants: 0,
             totalEmails: 0
         };
+    }
+};
+
+/**
+ * Export full local database to Excel file
+ */
+export const exportToExcel = async (): Promise<void> => {
+    try {
+        const participants = await getAllParticipants();
+
+        if (participants.length === 0) {
+            throw new Error('No data to export');
+        }
+
+        // Create workbook and worksheet
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(participants);
+        XLSX.utils.book_append_sheet(wb, ws, "Participants");
+
+        // Generate base64
+        const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+        // Save to file
+        const filename = `zorphix_participants_${new Date().getTime()}.xlsx`;
+        const uri = FileSystem.cacheDirectory + filename;
+
+        await FileSystem.writeAsStringAsync(uri, wbout, {
+            encoding: FileSystem.EncodingType.Base64
+        });
+
+        // Share file
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+            await Sharing.shareAsync(uri, {
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                dialogTitle: 'Export DB to Excel',
+                UTI: 'com.microsoft.excel.xlsx' // helpful for iOS
+            });
+        } else {
+            throw new Error('Sharing is not available on this device');
+        }
+
+    } catch (error) {
+        console.error('Excel export failed:', error);
+        throw error;
     }
 };
