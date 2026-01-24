@@ -100,7 +100,7 @@ export default function DatabaseViewerScreen() {
             {item.expanded && (
                 <View style={styles.eventsList}>
                     {item.events.map((event, index) => (
-                        <View key={event.uid} style={[
+                        <View key={`${event.uid}-${event.event_id}-${index}`} style={[
                             styles.eventItem,
                             index === item.events.length - 1 && styles.lastEventItem
                         ]}>

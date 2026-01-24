@@ -64,7 +64,7 @@ export default function RecentRegistrationsScreen() {
             <FlatList
                 data={users}
                 renderItem={renderItem}
-                keyExtractor={(item) => item.uid}
+                keyExtractor={(item, index) => `${item.uid}-${item.event_id}-${index}`}
                 contentContainerStyle={styles.list}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />

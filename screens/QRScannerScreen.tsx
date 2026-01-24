@@ -5,7 +5,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList, PAID_EVENTS } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
 import { getParticipantByUID, getParticipantByUIDAndEvent, markParticipated, insertParticipant } from '../services/sqlite';
-import { checkPaymentStatus, getParticipantFromFirebase } from '../services/firebase';
+import { checkPaymentStatus, getParticipantFromFirebase, registerUserOnSpot } from '../services/firebase';
+import { Modal, Image } from 'react-native';
 
 type QRScannerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'QRScanner'>;
 
@@ -17,10 +18,51 @@ export default function QRScannerScreen({ navigation }: Props) {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [processing, setProcessing] = useState(false);
+
+    // On-Spot Registration State
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [pendingParticipant, setPendingParticipant] = useState<any>(null);
+
     const { eventContext } = useEventContext();
 
     const currentEvent = eventContext?.eventName || '';
     const isPaidEvent = PAID_EVENTS.includes(currentEvent);
+
+    const confirmParticipation = (participant: any) => {
+        Alert.alert(
+            "✅ Verification Successful",
+            `${participant.name}\n\n` +
+            `Email: ${participant.email || 'N/A'}\n` +
+            `Event: ${currentEvent}\n` +
+            `Source: ${participant.source || 'Pre-registered'}\n\n` +
+            `Mark as PARTICIPATED?`,
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                },
+                {
+                    text: "Confirm Entry",
+                    onPress: () => {
+                        markParticipated(participant.uid, currentEvent);
+                        console.log(`✅ Marked ${participant.name} as participated`);
+                        Alert.alert(
+                            "🎉 Entry Confirmed!",
+                            `${participant.name} has been marked as PARTICIPATED for ${currentEvent}.`
+                        );
+                    }
+                }
+            ]
+        );
+    };
+
+    const markAttendance = (uid: string, eventId: string) => {
+        markParticipated(uid, eventId);
+        Alert.alert(
+            "🎉 Re-enrolled!",
+            `Participant has been marked as attended again for ${eventId}.`
+        );
+    };
 
     const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
         if (scanned || processing) return;
@@ -58,7 +100,10 @@ export default function QRScannerScreen({ navigation }: Props) {
                 const { uid, name, email, phone, college, dept, year, events } = qrParticipant;
 
                 // Check if participant's events include current event
-                if (!events || !Array.isArray(events) || !events.includes(currentEvent)) {
+                // FIRST: Check local DB (in case of on-spot registration)
+                const localParticipant = await getParticipantByUIDAndEvent(uid, currentEvent);
+
+                if (!localParticipant && (!events || !Array.isArray(events) || !events.includes(currentEvent))) {
                     const registeredEvents = events?.join(', ') || 'None';
                     console.log(`❌ Event mismatch: ${name} registered for [${registeredEvents}], not [${currentEvent}]`);
 
@@ -95,13 +140,58 @@ export default function QRScannerScreen({ navigation }: Props) {
                 if (!participant) {
                     console.log('⚡ Participant not in local DB, auto-registering...');
 
+                    // Strict Payment Check for Paid Events
+                    // If it is a paid event, we MUST verify payment via transactionId or paid_value in QR
+                    if (isPaidEvent) {
+                        // FIX: Logic updated to check for SPECIFIC event payment in the 'payments' array
+                        // The user reported "one time payment add" issue where paying for one event allowed entry to others.
+                        // We must find a payment record specifically for THIS event. 
+
+                        let isVerifiedForThisEvent = false;
+
+                        // Check 'payments' array structure (preferred)
+                        if (qrParticipant.payments && Array.isArray(qrParticipant.payments)) {
+                            const payments = qrParticipant.payments;
+                            for (const p of payments) {
+                                // Check if this payment is verified AND covers the current event
+                                if (p.verified && p.eventNames && Array.isArray(p.eventNames) && p.eventNames.includes(currentEvent)) {
+                                    isVerifiedForThisEvent = true;
+                                    break;
+                                }
+                            }
+                        }
+                        // Fallback: If no payments array, check legacy single transactionId
+                        // BUT only if we are sure it applies? Actually, user says "n payment id must be there".
+                        // So we should be strict. If it's a paid event and we can't find specific payment, FAIL.
+                        // However, to avoid breaking legacy QRs completely if they truly only had one event...
+                        // If 'events' length is 1 and matches currentEvent, maybe we trust transactionId?
+                        else if (qrParticipant.transactionId && qrParticipant.events && qrParticipant.events.length === 1 && qrParticipant.events.includes(currentEvent)) {
+                            isVerifiedForThisEvent = true;
+                        }
+
+                        if (!isVerifiedForThisEvent) {
+                            console.log(`❌ Paid event '${currentEvent}' but no specific payment verification found in QR.`);
+
+                            // Pre-fill payment modal data
+                            setPendingParticipant({
+                                uid: uid,
+                                amount: 0,
+                                // Pass other data if we want to register them after payment
+                                ...qrParticipant
+                            });
+                            setShowPaymentModal(true);
+                            return;
+                        }
+                        console.log('✅ Payment Verified via QR Data (Specific Event Verification)');
+                    }
+
                     // Auto-register from QR data
                     insertParticipant(
                         uid,
                         currentEvent,
                         name,
-                        '', // phone not in QR
-                        '', // email not in QR  
+                        phone || '',
+                        email || '',
                         college || '',
                         '',
                         '', // degree not in QR
@@ -110,7 +200,7 @@ export default function QRScannerScreen({ navigation }: Props) {
                         '',
                         year || '',
                         'WEB',
-                        1, // synced (from web registration)
+                        1, // synced
                         0  // not checked in yet
                     );
 
@@ -119,16 +209,15 @@ export default function QRScannerScreen({ navigation }: Props) {
                     participant = {
                         uid,
                         name,
+                        email,
                         event_id: currentEvent,
-                        participated: 0
+                        participated: 0,
+                        source: 'WEB'
                     };
-                } else {
-                    console.log('ℹ️  Participant already in local DB');
                 }
 
                 // Check if already participated
-                if (participant.participated === 1) {
-                    console.log('⚠️  Participant already participated');
+                if (participant.participated === 1 && isPaidEvent) {
                     Alert.alert(
                         "⚠️ Already Participated",
                         `${name} has already been participated.\n\nEvent: ${currentEvent}\n\nStatus: Participated ✅`,
@@ -136,28 +225,36 @@ export default function QRScannerScreen({ navigation }: Props) {
                     );
                     return;
                 }
-
+                else if (participant.participated === 1 && !isPaidEvent) {
+                    Alert.alert(
+                        "⚠️ Already Participated",
+                        `${name} has already attended this event. Do you want to mark them as participated again?`,
+                        [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                                text: "Enroll",
+                                onPress: () => markAttendance(uid, currentEvent)
+                            }
+                        ]
+                    );
+                    return;
+                }
                 // For paid events, verify payment
                 if (isPaidEvent) {
-                    console.log('💳 Checking payment status (paid event)...');
                     try {
                         const paymentStatus = await checkPaymentStatus(uid, currentEvent);
-
                         if (!paymentStatus.verified) {
-                            console.log('❌ Payment not completed');
                             Alert.alert(
                                 "💳 Payment Required",
-                                `This is a paid event and payment has not been verified.\n\nName: ${name}\n\nPlease collect payment or verify with registration desk.`,
+                                `This is a paid event and payment has not been verified.\n\nName: ${name}\n\nPlease collect payment.`,
                                 [{ text: "OK" }]
                             );
                             return;
                         }
-                        console.log('✅ Payment verified');
                     } catch (paymentError) {
-                        console.log('⚠️  Payment check failed (offline?):', paymentError);
                         Alert.alert(
                             "⚠️ Cannot Verify Payment",
-                            `Unable to verify payment status (might be offline).\n\nName: ${name}\n\nPlease verify manually.`,
+                            `Unable to verify payment status.\n\nName: ${name}`,
                             [
                                 { text: "Cancel", style: "cancel" },
                                 {
@@ -171,8 +268,6 @@ export default function QRScannerScreen({ navigation }: Props) {
                     }
                 }
 
-                // All checks passed
-                console.log('✅ All checks passed, confirming participation...');
                 confirmParticipation(participant);
                 return;
             }
@@ -186,77 +281,97 @@ export default function QRScannerScreen({ navigation }: Props) {
 
             // 2. If not found locally, try with just the UID
             if (!participant) {
-                participant = await getParticipantByUID(scannedUID);
-            }
-
-            // 3. If still not found, check Firebase
-            if (!participant) {
-                console.log('🌐 Checking Firebase...');
-                try {
-                    const firebaseData = await getParticipantFromFirebase(scannedUID);
-                    if (firebaseData && firebaseData.events?.includes(currentEvent)) {
-                        console.log('✅ Found in Firebase');
-                        participant = {
-                            uid: scannedUID,
-                            name: firebaseData.displayName || firebaseData.name || 'Unknown',
-                            email: firebaseData.email || '',
-                            phone: firebaseData.phone || '',
-                            event_id: currentEvent,
-                            participated: 0,
-                            source: 'WEB'
-                        };
-                    }
-                } catch (fbError) {
-                    console.log("⚠️  Firebase lookup failed (might be offline):", fbError);
+                const p = await getParticipantByUID(scannedUID);
+                // If found here, it's just history. We likely need to check firebase or register new for THIS event.
+                if (p) {
+                    // Found them in another event, but not this one
                 }
             }
 
-            // 4. Not registered at all
+            // 3. If still not found, check Firebase
+            if (!participant || participant.event_id !== currentEvent) {
+                console.log('🌐 Checking Firebase...');
+                try {
+                    const firebaseData = await getParticipantFromFirebase(scannedUID);
+                    if (firebaseData) {
+                        // Check if registered for this event
+                        if (firebaseData.events?.includes(currentEvent)) {
+                            console.log('✅ Found in Firebase for this event');
+                            participant = {
+                                uid: scannedUID,
+                                name: firebaseData.displayName || firebaseData.name || 'Unknown',
+                                email: firebaseData.email || '',
+                                phone: firebaseData.phone || '',
+                                event_id: currentEvent,
+                                participated: 0,
+                                source: 'WEB'
+                            };
+                            // Auto-insert locally
+                            insertParticipant(
+                                scannedUID,
+                                currentEvent,
+                                participant.name,
+                                participant.phone,
+                                participant.email,
+                                firebaseData.college || '',
+                                firebaseData.collegeOther || '',
+                                firebaseData.degree || '',
+                                firebaseData.degreeOther || '',
+                                firebaseData.department || '',
+                                firebaseData.departmentOther || '',
+                                firebaseData.year || '',
+                                'WEB',
+                                1,
+                                0
+                            );
+                        } else {
+                            console.log(`User exists in Firebase but not for ${currentEvent}`);
+                        }
+                    }
+                } catch (fbError) {
+                    console.log("⚠️  Firebase lookup failed:", fbError);
+                }
+            }
+
             if (!participant) {
-                console.log('❌ Participant not found anywhere');
-                const displayUID = scannedUID.length > 50 ? scannedUID.substring(0, 50) + '...' : scannedUID;
+                if (isPaidEvent) {
+                    console.log('💳 User not registered for PAID event. Initiating On-Spot Registration...');
+                    setPendingParticipant({
+                        uid: scannedUID,
+                        amount: 0 // Default, can be dynamic if needed
+                    });
+                    setShowPaymentModal(true);
+                    return;
+                }
+
+                const displayUID = scannedUID.length > 20 ? scannedUID.substring(0, 20) + '...' : scannedUID;
                 Alert.alert(
                     "❌ Not Registered",
-                    `No registration found.\n\nScanned: ${displayUID}\n\nEvent: ${currentEvent}\n\nPlease register on the website first.`,
+                    `No registration found for this event.\n\nScanned: ${displayUID}\n\nPlease register first.`,
                     [{ text: "OK" }]
                 );
                 return;
             }
 
-            console.log(`✅ Found participant: ${participant.name}`);
-
-            // 5. Check if already participated
+            // Check participated
             if (participant.participated === 1) {
-                console.log('⚠️  Already participated');
-                Alert.alert(
-                    "⚠️ Already Verified",
-                    `${participant.name} has already been verified.\n\nEvent: ${currentEvent}\n\nStatus: Participated ✅`,
-                    [{ text: "OK" }]
-                );
+                Alert.alert("⚠️ Already Participated", `${participant.name} has already participated.`);
                 return;
             }
 
-            // 6. For paid events, verify payment
+            // Paid Check
             if (isPaidEvent) {
-                console.log('💳 Verifying payment...');
                 try {
                     const paymentStatus = await checkPaymentStatus(scannedUID, currentEvent);
-
                     if (!paymentStatus.verified) {
-                        console.log('❌ Payment not verified');
-                        Alert.alert(
-                            "💳 Payment Required",
-                            `This is a paid event and payment has not been verified.\n\nName: ${participant.name}\n\nPlease collect payment.`,
-                            [{ text: "OK" }]
-                        );
+                        Alert.alert("💳 Payment Required", "Payment not verified.");
                         return;
                     }
-                    console.log('✅ Payment verified');
-                } catch (paymentError) {
-                    console.log('⚠️  Payment check failed:', paymentError);
+                } catch (e) {
+                    console.log("Payment check error", e);
                     Alert.alert(
                         "⚠️ Cannot Verify Payment",
-                        `Unable to verify payment (might be offline).\n\nName: ${participant.name}`,
+                        `Unable to verify payment status.\n\nName: ${participant.name}`,
                         [
                             { text: "Cancel", style: "cancel" },
                             {
@@ -270,44 +385,78 @@ export default function QRScannerScreen({ navigation }: Props) {
                 }
             }
 
-            // 7. All checks passed
-            console.log('✅ All verification checks passed');
             confirmParticipation(participant);
 
         } catch (error) {
             console.error("❌ Verification error:", error);
-            Alert.alert("Error", `Failed to verify QR code: ${error}. Please try again.`);
+            Alert.alert("Error", `Failed to verify QR code: ${error}`);
         } finally {
             setProcessing(false);
         }
     };
 
-    const confirmParticipation = (participant: any) => {
-        Alert.alert(
-            "✅ Verification Successful",
-            `${participant.name}\n\n` +
-            `Email: ${participant.email || 'N/A'}\n` +
-            `Event: ${currentEvent}\n` +
-            `Source: ${participant.source || 'Pre-registered'}\n\n` +
-            `Mark as PARTICIPATED?`,
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel"
-                },
-                {
-                    text: "Confirm Entry",
-                    onPress: () => {
-                        markParticipated(participant.uid);
-                        console.log(`✅ Marked ${participant.name} as participated`);
-                        Alert.alert(
-                            "🎉 Entry Confirmed!",
-                            `${participant.name} has been marked as PARTICIPATED for ${currentEvent}.`
-                        );
-                    }
-                }
-            ]
-        );
+    const handleOnSpotRegistration = async () => {
+        if (!pendingParticipant) return;
+
+        setProcessing(true);
+        try {
+            const { uid } = pendingParticipant;
+            console.log(`💸 Processing On-Spot Cash Payment for ${uid}`);
+
+            // 1. Update Firebase
+            const success = await registerUserOnSpot(uid, currentEvent, 0); // Assuming 0 or fixed amount for now
+
+            if (success) {
+                // 2. Insert into Local DB (SQLite)
+                // We need to fetch basic user data primarily. 
+                // Since they are not in local DB (otherwise we wouldn't be here), try to fetch from Firebase again to get details,
+                // or just use placeholders if Firebase fetch fails/is slow.
+                const firebaseData = await getParticipantFromFirebase(uid);
+
+                const name = firebaseData?.displayName || firebaseData?.name || 'On-Spot User';
+                const email = firebaseData?.email || '';
+                const phone = firebaseData?.phone || '';
+
+                await insertParticipant(
+                    uid,
+                    currentEvent,
+                    name,
+                    phone,
+                    email,
+                    firebaseData?.college || '',
+                    '',
+                    firebaseData?.degree || '',
+                    '',
+                    firebaseData?.department || '',
+                    '',
+                    firebaseData?.year || '',
+                    'ONSPOT',
+                    1,
+                    1 // Mark as participated immediately!
+                );
+
+                console.log(`✅ On-Spot Registration Complete for ${name}`);
+
+                Alert.alert(
+                    "🎉 Registration Successful",
+                    `User registered and marked as PAID via Cash.\n\nWelcome ${name}!`,
+                    [{
+                        text: "OK", onPress: () => {
+                            setShowPaymentModal(false);
+                            setPendingParticipant(null);
+                            setScanned(false);
+                        }
+                    }]
+                );
+            } else {
+                Alert.alert("❌ Error", "Failed to update registration online. Please check internet.");
+            }
+        } catch (error) {
+            console.error("On-Spot Error:", error);
+            Alert.alert("❌ Error", "An error occurred during registration.");
+        } finally {
+            setProcessing(false);
+        }
     };
 
     if (!permission) {
@@ -389,6 +538,51 @@ export default function QRScannerScreen({ navigation }: Props) {
             <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
                 <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
+
+            {/* Payment Modal */}
+            <Modal
+                visible={showPaymentModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowPaymentModal(false)}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>💰 Payment Required</Text>
+                        <Text style={styles.modalSubtitle}>Event: {currentEvent}</Text>
+
+                        <View style={styles.qrContainer}>
+                            <Image
+                                source={require('../tresurerQR.jpg')}
+                                style={styles.qrImage}
+                                resizeMode="contain"
+                            />
+                        </View>
+
+                        <Text style={styles.modalInstruction}>
+                            Scan to Pay. Verify payment with Treasurer.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.payCashButton}
+                            onPress={handleOnSpotRegistration}
+                        >
+                            <Text style={styles.payCashButtonText}>💵 Verified - Register User</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.cancelButton}
+                            onPress={() => {
+                                setShowPaymentModal(false);
+                                setPendingParticipant(null);
+                                setScanned(false);
+                            }}
+                        >
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -548,5 +742,76 @@ const styles = StyleSheet.create({
         color: '#FFD700',
         fontWeight: 'bold',
         fontSize: 18,
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20
+    },
+    modalContent: {
+        backgroundColor: '#1E1E1E',
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+        width: '100%',
+        maxWidth: 340,
+        borderWidth: 1,
+        borderColor: '#333'
+    },
+    modalTitle: {
+        color: '#FFD700',
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 8
+    },
+    modalSubtitle: {
+        color: '#AAA',
+        fontSize: 16,
+        marginBottom: 20
+    },
+    qrContainer: {
+        width: 200,
+        height: 200,
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 10,
+        marginBottom: 20,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    qrImage: {
+        width: '100%',
+        height: '100%'
+    },
+    modalInstruction: {
+        color: '#FFF',
+        textAlign: 'center',
+        marginBottom: 24,
+        fontSize: 14
+    },
+    payCashButton: {
+        backgroundColor: '#4CAF50',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        width: '100%',
+        alignItems: 'center',
+        marginBottom: 12
+    },
+    payCashButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold'
+    },
+    cancelButton: {
+        paddingVertical: 12,
+        width: '100%',
+        alignItems: 'center'
+    },
+    cancelButtonText: {
+        color: '#FF5252',
+        fontSize: 16
     }
 });

@@ -21,9 +21,8 @@ export const syncFromFirebase = async () => {
 
             // For each event the user is registered for, create a local record
             for (const eventName of events) {
-                // Create a unique local UID so one user can be in multiple events
-                // Format: FIREBASEUID_EVENTNAME (spaces removed)
-                const localUid = `${firestoreUid}_${eventName.replace(/\s+/g, '')}`;
+                // Use actual Firestore UID since we now support composite PK (uid, event_id)
+                const localUid = firestoreUid;
 
                 // Check if payment is verified for this event
                 const paymentVerified = payments.some(
@@ -108,7 +107,7 @@ export const syncOnspotToFirebase = async () => {
 
         // Mark local records as synced
         for (const p of unsyncedParams) {
-            markSynced(p.uid);
+            markSynced(p.uid, p.event_id);
         }
 
         console.log(`Successfully uploaded ${unsyncedParams.length} on-spot registrations.`);
@@ -160,7 +159,7 @@ export const syncEventFromFirebase = async (eventName: string) => {
             const firestoreUid = data.uid || docSnap.id;
             const payments = data.payments || [];
 
-            const localUid = `${firestoreUid}_${eventName.replace(/\s+/g, '')}`;
+            const localUid = firestoreUid;
 
             const paymentVerified = payments.some(
                 (p: any) => p.eventNames?.includes(eventName) && p.verified

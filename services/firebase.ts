@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, initializeFirestore, collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
+import { getFirestore, initializeFirestore, collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
 import { Platform } from "react-native";
 
@@ -118,5 +118,42 @@ export const getParticipantFromFirebase = async (userUid: string) => {
     } catch (error) {
         console.error("Failed to get participant from Firebase:", error);
         return null;
+    }
+};
+
+// Register user for an event on-spot (updates Firebase)
+export const registerUserOnSpot = async (
+    userUid: string,
+    eventName: string,
+    amountPaid: number = 0
+): Promise<boolean> => {
+    try {
+        const userRef = doc(db, "registrations", userUid);
+        const userDoc = await getDoc(userRef);
+
+        if (!userDoc.exists()) {
+            console.error("User does not exist in Firebase, cannot register on-spot.");
+            // In a real scenario, you might want to create the user doc here if it doesn't exist
+            // but for now we assume they have a base registration.
+            return false;
+        }
+
+        await updateDoc(userRef, {
+            events: arrayUnion(eventName),
+            payments: arrayUnion({
+                amount: amountPaid,
+                date: new Date().toISOString(),
+                eventNames: [eventName],
+                id: `onspot_${Date.now()}`,
+                status: "verified",
+                verified: true,
+                type: "CASH_ONSPOT"
+            })
+        });
+
+        return true;
+    } catch (error) {
+        console.error("Failed to register user on-spot:", error);
+        return false;
     }
 };

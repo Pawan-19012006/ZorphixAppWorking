@@ -8,6 +8,10 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList, COLLEGES, DEGREES, DEPARTMENTS, YEARS } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
 import { insertParticipant } from '../services/sqlite';
+import { registerUserOnSpot } from '../services/firebase'; // Ensure this is exported and available
+import { PAID_EVENTS } from '../navigation/types';
+import QRCode from 'react-native-qrcode-svg';
+import { Image } from 'react-native';
 
 type RegistrationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Registration'>;
 type RegistrationScreenRouteProp = RouteProp<RootStackParamList, 'Registration'>;
@@ -95,15 +99,41 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const [departmentOther, setDepartmentOther] = useState('');
     const [year, setYear] = useState(prefilledYear || '');
     const [submitting, setSubmitting] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [registeredData, setRegisteredData] = useState<any>(null);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [pendingRegistration, setPendingRegistration] = useState<any>(null);
 
     // Update form fields when prefilled values change (handles navigation re-use)
     React.useEffect(() => {
-        if (prefilledName) setName(prefilledName);
-        if (prefilledEmail) setEmail(prefilledEmail);
-        if (prefilledPhone) setPhone(prefilledPhone);
-        if (prefilledCollege) setCollege(prefilledCollege);
-        if (prefilledDept) setDepartment(prefilledDept);
-        if (prefilledYear) setYear(prefilledYear);
+        console.log('📥 RegistrationScreen: Received params:', {
+            prefilledUID, prefilledName, prefilledEmail, prefilledPhone, prefilledCollege, prefilledDept, prefilledYear
+        });
+
+        if (prefilledName) {
+            console.log(`✅ Auto-filling name: ${prefilledName}`);
+            setName(prefilledName);
+        }
+        if (prefilledEmail) {
+            console.log(`✅ Auto-filling email: ${prefilledEmail}`);
+            setEmail(prefilledEmail);
+        }
+        if (prefilledPhone) {
+            console.log(`✅ Auto-filling phone: ${prefilledPhone}`);
+            setPhone(prefilledPhone);
+        }
+        if (prefilledCollege) {
+            console.log(`✅ Auto-filling college: ${prefilledCollege}`);
+            setCollege(prefilledCollege);
+        }
+        if (prefilledDept) {
+            console.log(`✅ Auto-filling dept: ${prefilledDept}`);
+            setDepartment(prefilledDept);
+        }
+        if (prefilledYear) {
+            console.log(`✅ Auto-filling year: ${prefilledYear}`);
+            setYear(prefilledYear);
+        }
     }, [
         prefilledName,
         prefilledEmail,
@@ -157,6 +187,61 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
         return true;
     };
 
+    const finalizeRegistration = async (uid: string, eventId: string, participantData: any, isPaid: boolean = false) => {
+        try {
+            // If paid event and we are here, it means they clicked "Pay via Cash" or it was free
+            // If paid, we should also update firebase with payment info
+            if (isPaid) {
+                await registerUserOnSpot(uid, eventId, 0);
+            }
+
+            await insertParticipant(
+                uid,
+                eventId,
+                participantData.name,
+                participantData.phone,
+                participantData.email,
+                participantData.college,
+                participantData.college_other,
+                participantData.degree,
+                participantData.degree_other,
+                participantData.dept,
+                participantData.dept_other,
+                participantData.year,
+                'ONSPOT',
+                1, // synced (assuming onspot is effectively synced or we sync later)
+                1   // checked_in: yes
+            );
+
+            setSubmitting(false);
+
+            setRegisteredData({
+                uid,
+                name: participantData.name,
+                email: participantData.email,
+                phone: participantData.phone,
+                college: participantData.college === 'Other' ? participantData.college_other : participantData.college,
+                dept: participantData.dept === 'Other' ? participantData.dept_other : participantData.dept,
+                year: participantData.year,
+                events: [eventId],
+                // Add payment info for QR generation if paid
+                payments: isPaid ? [{
+                    eventNames: [eventId],
+                    verified: true,
+                    amount: 0,
+                    id: `onspot_${Date.now()}`
+                }] : []
+            });
+            setShowSuccess(true);
+            setShowPaymentModal(false);
+
+        } catch (error) {
+            console.error('Registration finalize error:', error);
+            Alert.alert('Error', 'Failed to save registration.');
+            setSubmitting(false);
+        }
+    };
+
     const handleRegister = async () => {
         if (!validateForm()) return;
         if (!eventContext?.eventName) {
@@ -164,67 +249,120 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
             return;
         }
 
+        const eventId = eventContext.eventName;
+        const isPaidEvent = PAID_EVENTS.includes(eventId);
+
         setSubmitting(true);
 
-        try {
-            const eventId = eventContext.eventName;
+        // Use pre-filled UID if available (from QR scan), otherwise generate new one
+        const uid = prefilledUID || `${eventId.replace(/\s+/g, '')}-ONSPOT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-            // Use pre-filled UID if available (from QR scan), otherwise generate new one
-            const uid = prefilledUID || `${eventId.replace(/\s+/g, '')}-ONSPOT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const participantData = {
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            phone: phone.trim(),
+            college,
+            college_other: collegeOther,
+            degree,
+            degree_other: degreeOther,
+            dept: department,
+            dept_other: departmentOther,
+            year
+        };
 
-            // Prepare data
-            const finalCollege = college === 'Other' ? collegeOther : college;
-            const finalDegree = degree === 'Other' ? degreeOther : degree;
-            const finalDepartment = department === 'Other' ? departmentOther : department;
-
-            await insertParticipant(
-                uid,
-                eventId,
-                name.trim(),
-                phone.trim(),
-                email.trim().toLowerCase(),
-                finalCollege,
-                college === 'Other' ? collegeOther : '',
-                finalDegree,
-                degree === 'Other' ? degreeOther : '',
-                finalDepartment,
-                department === 'Other' ? departmentOther : '',
-                year,
-                'ONSPOT',
-                0,  // sync_status: not synced
-                1   // checked_in: yes (they're here on-spot)
-            );
-
-            Alert.alert(
-                'Registration Successful! ✅',
-                `${name} has been registered for ${eventId}.\n\nUID: ${uid}\n\nPlease ask the participant to take a photo of this for their records.`,
-                [
-                    {
-                        text: 'Register Another',
-                        onPress: () => {
-                            // Reset form
-                            setName('');
-                            setEmail('');
-                            setPhone('');
-                            setCollege('');
-                            setCollegeOther('');
-                            setDegree('');
-                            setDegreeOther('');
-                            setDepartment('');
-                            setDepartmentOther('');
-                            setYear('');
-                        }
-                    },
-                    { text: 'Done', onPress: () => navigation.goBack() }
-                ]
-            );
-        } catch (error) {
-            console.error('Registration error:', error);
-            Alert.alert('Error', 'Failed to save registration. Please try again.');
-        } finally {
-            setSubmitting(false);
+        if (isPaidEvent) {
+            setPendingRegistration({ uid, eventId, participantData });
+            setShowPaymentModal(true);
+            // submitting stays true until modal action
+            return;
         }
+
+        // Free event - proceed directly
+        await finalizeRegistration(uid, eventId, participantData, false);
     };
+
+    if (showSuccess && registeredData) {
+        const qrValue = JSON.stringify({
+            uid: registeredData.uid,
+            name: registeredData.name,
+            email: registeredData.email,
+            phone: registeredData.phone,
+            college: registeredData.college,
+            dept: registeredData.dept,
+            year: registeredData.year,
+            events: registeredData.events,
+            payments: registeredData.payments // Include payments in QR
+        });
+
+        return (
+            <View style={styles.successContainer}>
+                <View style={[styles.eventBadge, { marginBottom: 30 }]}>
+                    <Text style={styles.eventBadgeLabel}>Registration Successful</Text>
+                    <Text style={styles.eventBadgeName}>{eventContext?.eventName}</Text>
+                </View>
+
+                <View style={styles.qrContainer}>
+                    <QRCode
+                        value={qrValue}
+                        size={250}
+                        color="black"
+                        backgroundColor="white"
+                    />
+                </View>
+
+                <Text style={styles.successTitle}>{registeredData.name}</Text>
+                <Text style={styles.successSubtitle}>UID: {registeredData.uid}</Text>
+                <Text style={styles.instructionText}>
+                    Please ask the participant to take a photo of this QR code.
+                </Text>
+
+                <TouchableOpacity
+                    style={styles.button}
+                    onPress={() => {
+                        // Reset form
+                        setName('');
+                        setEmail('');
+                        setPhone('');
+                        setCollege('');
+                        setCollegeOther('');
+                        setDegree('');
+                        setDegreeOther('');
+                        setDepartment('');
+                        setDepartmentOther('');
+                        setYear('');
+                        setRegisteredData(null);
+                        setShowSuccess(false);
+                        navigation.goBack(); // Optional: go back to scanner? Or stay for next?
+                        // Actually improved flow: 'Register Another' resets, 'Done' goes back.
+                        // Let's offer those two options.
+                    }}
+                >
+                    <Text style={styles.buttonText}>Done (Go Back)</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.button, { backgroundColor: '#333', marginTop: 16 }]}
+                    onPress={() => {
+                        // Reset form and stay
+                        setName('');
+                        setEmail('');
+                        setPhone('');
+                        setCollege('');
+                        setCollegeOther('');
+                        setDegree('');
+                        setDegreeOther('');
+                        setDepartment('');
+                        setDepartmentOther('');
+                        setYear('');
+                        setRegisteredData(null);
+                        setShowSuccess(false);
+                    }}
+                >
+                    <Text style={[styles.buttonText, { color: '#FFF' }]}>Register Another</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
@@ -372,6 +510,62 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                     </Text>
                 </TouchableOpacity>
             </ScrollView>
+
+            {/* Payment Modal */}
+            <Modal
+                visible={showPaymentModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => {
+                    setShowPaymentModal(false);
+                    setSubmitting(false);
+                }}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>💰 Payment Required</Text>
+                        <Text style={styles.modalSubtitle}>Event: {eventContext?.eventName}</Text>
+
+                        <View style={styles.qrViewContainer}>
+                            <Image
+                                source={require('../tresurerQR.jpg')}
+                                style={styles.qrImage}
+                                resizeMode="contain"
+                            />
+                        </View>
+
+                        <Text style={styles.modalInstruction}>
+                            Scan to Pay. Treasurer Verification Required.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.payCashButton}
+                            onPress={() => {
+                                if (pendingRegistration) {
+                                    finalizeRegistration(
+                                        pendingRegistration.uid,
+                                        pendingRegistration.eventId,
+                                        pendingRegistration.participantData,
+                                        true
+                                    );
+                                }
+                            }}
+                        >
+                            <Text style={styles.payCashButtonText}>💵 Verified - Register User</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.cancelButton}
+                            onPress={() => {
+                                setShowPaymentModal(false);
+                                setSubmitting(false);
+                            }}
+                        >
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 };
@@ -529,6 +723,109 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
+    successContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: '#000',
+    },
+    qrContainer: {
+        padding: 20,
+        backgroundColor: 'white',
+        borderRadius: 20,
+        marginBottom: 30,
+    },
+    successTitle: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#FFD700',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    successSubtitle: {
+        fontSize: 16,
+        color: '#FFF',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    instructionText: {
+        fontSize: 14,
+        color: '#888',
+        textAlign: 'center',
+        marginBottom: 30,
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20
+    },
+    modalContent: {
+        backgroundColor: '#1E1E1E',
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+        width: '100%',
+        maxWidth: 340,
+        borderWidth: 1,
+        borderColor: '#333'
+    },
+    modalTitle: {
+        color: '#FFD700',
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 8
+    },
+    modalSubtitle: {
+        color: '#AAA',
+        fontSize: 16,
+        marginBottom: 20
+    },
+    qrViewContainer: {
+        width: 200,
+        height: 200,
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 5,
+        marginBottom: 20,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    qrImage: {
+        width: '100%',
+        height: '100%'
+    },
+    modalInstruction: {
+        color: '#FFF',
+        textAlign: 'center',
+        marginBottom: 24,
+        fontSize: 14
+    },
+    payCashButton: {
+        backgroundColor: '#4CAF50',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        width: '100%',
+        alignItems: 'center',
+        marginBottom: 12
+    },
+    payCashButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold'
+    },
+    cancelButton: {
+        paddingVertical: 12,
+        width: '100%',
+        alignItems: 'center'
+    },
+    cancelButtonText: {
+        color: '#FF5252',
+        fontSize: 16
+    }
 });
 
 export default RegistrationScreen;

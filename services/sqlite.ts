@@ -45,28 +45,139 @@ export const initParticipantDB = () => {
     if (!db) return;
 
     try {
-        db.execSync(
-            `CREATE TABLE IF NOT EXISTS participants (
-                uid TEXT PRIMARY KEY,
-                event_id TEXT,
-                name TEXT,
-                phone TEXT,
-                email TEXT,
-                college TEXT,
-                college_other TEXT,
-                degree TEXT,
-                degree_other TEXT,
-                department TEXT,
-                department_other TEXT,
-                year TEXT,
-                checked_in INTEGER DEFAULT 0,
-                checkin_time TEXT,
-                source TEXT DEFAULT 'WEB',
-                sync_status INTEGER DEFAULT 1,
-                payment_verified INTEGER DEFAULT 0,
-                participated INTEGER DEFAULT 0
-            );`
-        );
+        // 1. Check if we need to migrate to Composite PK
+        // We check if the table info shows 'pk' > 1 for just uid, or we check if we can insert dupes.
+        // Easier way: Check table definition or just rely on a specific migration flag.
+        // Let's check table info.
+        const tableInfo = db.getAllSync(`PRAGMA table_info(participants);`);
+        const uidInfo = tableInfo.find((col: any) => col.name === 'uid');
+        const eventInfo = tableInfo.find((col: any) => col.name === 'event_id');
+
+        // If 'uid' is PK (pk=1) and 'event_id' is NOT part of PK (pk=0/undefined), we need migration
+        // Note: in composite PK, both would have pk > 0.
+        const isOldSchema = uidInfo?.pk === 1 && (!eventInfo?.pk || eventInfo?.pk === 0);
+
+        if (isOldSchema) {
+            console.log("⚡ Starting Schema Migration: Single PK -> Composite PK");
+
+            db.execSync('BEGIN TRANSACTION;');
+            try {
+                // Rename old table
+                db.execSync(`ALTER TABLE participants RENAME TO participants_old;`);
+
+                // Create new table with Composite PK
+                db.execSync(
+                    `CREATE TABLE participants (
+                        uid TEXT,
+                        event_id TEXT,
+                        name TEXT,
+                        phone TEXT,
+                        email TEXT,
+                        college TEXT,
+                        college_other TEXT,
+                        degree TEXT,
+                        degree_other TEXT,
+                        department TEXT,
+                        department_other TEXT,
+                        year TEXT,
+                        checked_in INTEGER DEFAULT 0,
+                        checkin_time TEXT,
+                        source TEXT DEFAULT 'WEB',
+                        sync_status INTEGER DEFAULT 1,
+                        payment_verified INTEGER DEFAULT 0,
+                        participated INTEGER DEFAULT 0,
+                        PRIMARY KEY (uid, event_id)
+                    );`
+                );
+
+                // Copy data
+                // We need to be careful about columns matching. 
+                // The old table might check miss some columns if we just added them via ALTER.
+                // Best to list columns specifically if we can, but 'SELECT *' usually works if structure matches loosely.
+                // Safest is to insert common columns.
+                db.execSync(`
+                    INSERT INTO participants (
+                        uid, event_id, name, phone, email, 
+                        college, college_other, degree, degree_other, 
+                        department, department_other, year, 
+                        checked_in, checkin_time, source, sync_status, 
+                        payment_verified, participated
+                    )
+                    SELECT 
+                        uid, event_id, name, phone, email, 
+                        college, college_other, degree, degree_other, 
+                        department, department_other, year, 
+                        checked_in, checkin_time, source, sync_status, 
+                        payment_verified, participated
+                    FROM participants_old;
+                `);
+
+                // Drop old table
+                db.execSync(`DROP TABLE participants_old;`);
+
+                db.execSync('COMMIT;');
+                console.log("✅ Schema Migration Complete: Composite PK enabled.");
+            } catch (migrationError) {
+                console.error("Migration failed, rolling back", migrationError);
+                db.execSync('ROLLBACK;');
+            }
+        } else {
+            // Ensure table exists if fresh install
+            db.execSync(
+                `CREATE TABLE IF NOT EXISTS participants (
+                    uid TEXT,
+                    event_id TEXT,
+                    name TEXT,
+                    phone TEXT,
+                    email TEXT,
+                    college TEXT,
+                    college_other TEXT,
+                    degree TEXT,
+                    degree_other TEXT,
+                    department TEXT,
+                    department_other TEXT,
+                    year TEXT,
+                    checked_in INTEGER DEFAULT 0,
+                    checkin_time TEXT,
+                    source TEXT DEFAULT 'WEB',
+                    sync_status INTEGER DEFAULT 1,
+                    payment_verified INTEGER DEFAULT 0,
+                    participated INTEGER DEFAULT 0,
+                    PRIMARY KEY (uid, event_id)
+                );`
+            );
+        }
+
+        // Schema Migration: Add columns if they requested but missing (for existing apps)
+        // This is safe to run even after the big migration above, as it checks existence.
+        const columnsToAdd = [
+            "college TEXT",
+            "college_other TEXT",
+            "degree TEXT",
+            "degree_other TEXT",
+            "department TEXT",
+            "department_other TEXT",
+            "year TEXT",
+            "checked_in INTEGER DEFAULT 0",
+            "checkin_time TEXT",
+            "source TEXT DEFAULT 'WEB'",
+            "sync_status INTEGER DEFAULT 1",
+            "payment_verified INTEGER DEFAULT 0",
+            "participated INTEGER DEFAULT 0"
+        ];
+
+        columnsToAdd.forEach(colDef => {
+            try {
+                const colName = colDef.split(' ')[0];
+                db.execSync(`ALTER TABLE participants ADD COLUMN ${colDef};`);
+                // console.log(`✅ Added missing column: ${colName}`);
+            } catch (e: any) {
+                if (!e.message?.includes('duplicate column name')) {
+                    // console.log(`Column exists or error: ${e.message}`);
+                }
+            }
+        });
+
     } catch (e) {
         console.error("Failed to init DB", e);
     }
@@ -91,7 +202,7 @@ export const insertParticipant = (
     checked_in: number = 0
 ) => {
     if (Platform.OS === 'web') {
-        const exists = webParticipants.find(p => p.uid === uid);
+        const exists = webParticipants.find(p => p.uid === uid && p.event_id === event_id);
         if (!exists) {
             webParticipants.push({
                 uid, event_id, name, phone, email,
@@ -121,19 +232,24 @@ export const insertParticipant = (
 };
 
 // Get participant by UID for QR verification
+// NOTE: Returns ALL records for this UID (could be multiple events)
 export const getParticipantByUID = async (uid: string): Promise<any> => {
     if (Platform.OS === 'web') {
-        const p = webParticipants.find(p => p.uid === uid);
-        return p || null;
+        return webParticipants.filter(p => p.uid === uid) || null;
     }
     if (!db) return null;
 
     try {
-        const result = db.getFirstSync(
+        // Should probably return a list, but keeping signature for now.
+        // The original code expected one. 
+        // For general "scan to see history", maybe getAllSync is better.
+        // But for "Entry", we usually know the event context or ask for it.
+        // If we just scanned a bare UID, we might need to pick which event.
+        const result = db.getAllSync(
             `SELECT * FROM participants WHERE uid = ?;`,
             [uid]
         );
-        return result || null;
+        return result.length > 0 ? result[0] : null;
     } catch (e) {
         console.error("Get participant failed", e);
         return null;
@@ -143,10 +259,8 @@ export const getParticipantByUID = async (uid: string): Promise<any> => {
 // Get participant by UID and event for specific verification
 export const getParticipantByUIDAndEvent = async (uid: string, eventId: string): Promise<any> => {
     if (Platform.OS === 'web') {
-        // For web, try exact match first, then partial match
         let p = webParticipants.find(p => p.uid === uid && p.event_id === eventId);
         if (!p) {
-            // Try looking for the base UID (Firebase UID without event suffix)
             p = webParticipants.find(p => p.uid.startsWith(uid) && p.event_id === eventId);
         }
         return p || null;
@@ -166,9 +280,9 @@ export const getParticipantByUIDAndEvent = async (uid: string, eventId: string):
 };
 
 // Mark participant as checked in
-export const markCheckedIn = (uid: string) => {
+export const markCheckedIn = (uid: string, eventId?: string) => {
     if (Platform.OS === 'web') {
-        const p = webParticipants.find(p => p.uid === uid);
+        const p = webParticipants.find(p => p.uid === uid && (!eventId || p.event_id === eventId));
         if (p) {
             p.checked_in = 1;
             p.checkin_time = new Date().toISOString();
@@ -177,14 +291,17 @@ export const markCheckedIn = (uid: string) => {
         return;
     }
     if (!db) return;
+    if (!eventId) {
+        console.warn("markCheckedIn called without eventId, might affect multiple records");
+    }
 
     const timestamp = new Date().toISOString();
     try {
         db.runSync(
             `UPDATE participants 
              SET checked_in = 1, checkin_time = ? 
-             WHERE uid = ?;`,
-            [timestamp, uid]
+             WHERE uid = ? ${eventId ? 'AND event_id = ?' : ''};`,
+            eventId ? [timestamp, uid, eventId] : [timestamp, uid]
         );
     } catch (e) {
         console.error("Check-in failed", e);
@@ -192,9 +309,10 @@ export const markCheckedIn = (uid: string) => {
 };
 
 // Mark participant as participated (verified and allowed entry)
-export const markParticipated = (uid: string) => {
+// !! CRITICAL: Must scope by event_id now
+export const markParticipated = (uid: string, eventId?: string) => {
     if (Platform.OS === 'web') {
-        const p = webParticipants.find(p => p.uid === uid);
+        const p = webParticipants.find(p => p.uid === uid && (!eventId || p.event_id === eventId));
         if (p) {
             p.participated = 1;
             p.checked_in = 1;
@@ -205,23 +323,28 @@ export const markParticipated = (uid: string) => {
     }
     if (!db) return;
 
+    // We should really require eventId here to be safe
+    // But for backward compat, we handle optional (though it's risky)
+
     const timestamp = new Date().toISOString();
     try {
-        db.runSync(
-            `UPDATE participants 
+        const query = `UPDATE participants 
              SET participated = 1, checked_in = 1, checkin_time = ? 
-             WHERE uid = ?;`,
-            [timestamp, uid]
-        );
+             WHERE uid = ? ${eventId ? 'AND event_id = ?' : ''};`;
+
+        const params = eventId ? [timestamp, uid, eventId] : [timestamp, uid];
+
+        db.runSync(query, params);
+        console.log(`Marked participated: ${uid} for ${eventId || 'any'}`);
     } catch (e) {
         console.error("Mark participated failed", e);
     }
 };
 
 // Update payment verification status
-export const updatePaymentStatus = (uid: string, verified: boolean) => {
+export const updatePaymentStatus = (uid: string, verified: boolean, eventId?: string) => {
     if (Platform.OS === 'web') {
-        const p = webParticipants.find(p => p.uid === uid);
+        const p = webParticipants.find(p => p.uid === uid && (!eventId || p.event_id === eventId));
         if (p) {
             p.payment_verified = verified ? 1 : 0;
             saveWebData();
@@ -232,8 +355,8 @@ export const updatePaymentStatus = (uid: string, verified: boolean) => {
 
     try {
         db.runSync(
-            `UPDATE participants SET payment_verified = ? WHERE uid = ?;`,
-            [verified ? 1 : 0, uid]
+            `UPDATE participants SET payment_verified = ? WHERE uid = ? ${eventId ? 'AND event_id = ?' : ''};`,
+            eventId ? [verified ? 1 : 0, uid, eventId] : [verified ? 1 : 0, uid]
         );
     } catch (e) {
         console.error("Update payment status failed", e);
@@ -258,9 +381,9 @@ export const getUnsyncedOnspot = async (): Promise<any[]> => {
     }
 };
 
-export const markSynced = (uid: string) => {
+export const markSynced = (uid: string, eventId?: string) => {
     if (Platform.OS === 'web') {
-        const p = webParticipants.find(p => p.uid === uid);
+        const p = webParticipants.find(p => p.uid === uid && (!eventId || p.event_id === eventId));
         if (p) {
             p.sync_status = 1;
             saveWebData();
@@ -271,8 +394,8 @@ export const markSynced = (uid: string) => {
 
     try {
         db.runSync(
-            `UPDATE participants SET sync_status = 1 WHERE uid = ?;`,
-            [uid]
+            `UPDATE participants SET sync_status = 1 WHERE uid = ? ${eventId ? 'AND event_id = ?' : ''};`,
+            eventId ? [uid, eventId] : [uid]
         );
     } catch (e) {
         console.error("Mark synced failed", e);
