@@ -36,7 +36,7 @@ if (Platform.OS !== 'web') {
     }
 }
 
-// Initialize the database table
+// Initialize the database table with extended schema
 export const initParticipantDB = () => {
     if (Platform.OS === 'web') {
         console.log("Web Mock DB Initialized (with localStorage)");
@@ -52,10 +52,19 @@ export const initParticipantDB = () => {
                 name TEXT,
                 phone TEXT,
                 email TEXT,
+                college TEXT,
+                college_other TEXT,
+                degree TEXT,
+                degree_other TEXT,
+                department TEXT,
+                department_other TEXT,
+                year TEXT,
                 checked_in INTEGER DEFAULT 0,
                 checkin_time TEXT,
                 source TEXT DEFAULT 'WEB',
-                sync_status INTEGER DEFAULT 1
+                sync_status INTEGER DEFAULT 1,
+                payment_verified INTEGER DEFAULT 0,
+                participated INTEGER DEFAULT 0
             );`
         );
     } catch (e) {
@@ -63,13 +72,20 @@ export const initParticipantDB = () => {
     }
 };
 
-// Insert a participant (INSERT OR IGNORE to prevent duplicates)
+// Insert a participant with extended fields
 export const insertParticipant = (
     uid: string,
     event_id: string,
     name: string,
     phone: string,
     email: string,
+    college: string = '',
+    college_other: string = '',
+    degree: string = '',
+    degree_other: string = '',
+    department: string = '',
+    department_other: string = '',
+    year: string = '',
     source: 'WEB' | 'ONSPOT' = 'WEB',
     sync_status: number = 1,
     checked_in: number = 0
@@ -78,9 +94,13 @@ export const insertParticipant = (
         const exists = webParticipants.find(p => p.uid === uid);
         if (!exists) {
             webParticipants.push({
-                uid, event_id, name, phone, email, source, sync_status, checked_in, checkin_time: null
+                uid, event_id, name, phone, email,
+                college, college_other, degree, degree_other,
+                department, department_other, year,
+                source, sync_status, checked_in, checkin_time: null,
+                payment_verified: 0, participated: 0
             });
-            saveWebData(); // Persist
+            saveWebData();
         }
         return;
     }
@@ -89,9 +109,11 @@ export const insertParticipant = (
     try {
         db.runSync(
             `INSERT OR IGNORE INTO participants 
-            (uid, event_id, name, phone, email, source, sync_status, checked_in) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-            [uid, event_id, name, phone, email, source, sync_status, checked_in]
+            (uid, event_id, name, phone, email, college, college_other, degree, degree_other, 
+             department, department_other, year, source, sync_status, checked_in) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [uid, event_id, name, phone, email, college, college_other, degree, degree_other,
+                department, department_other, year, source, sync_status, checked_in]
         );
     } catch (e) {
         console.error("Insert failed", e);
@@ -118,6 +140,31 @@ export const getParticipantByUID = async (uid: string): Promise<any> => {
     }
 };
 
+// Get participant by UID and event for specific verification
+export const getParticipantByUIDAndEvent = async (uid: string, eventId: string): Promise<any> => {
+    if (Platform.OS === 'web') {
+        // For web, try exact match first, then partial match
+        let p = webParticipants.find(p => p.uid === uid && p.event_id === eventId);
+        if (!p) {
+            // Try looking for the base UID (Firebase UID without event suffix)
+            p = webParticipants.find(p => p.uid.startsWith(uid) && p.event_id === eventId);
+        }
+        return p || null;
+    }
+    if (!db) return null;
+
+    try {
+        const result = db.getFirstSync(
+            `SELECT * FROM participants WHERE (uid = ? OR uid LIKE ?) AND event_id = ?;`,
+            [uid, `${uid}_%`, eventId]
+        );
+        return result || null;
+    } catch (e) {
+        console.error("Get participant by UID and event failed", e);
+        return null;
+    }
+};
+
 // Mark participant as checked in
 export const markCheckedIn = (uid: string) => {
     if (Platform.OS === 'web') {
@@ -125,7 +172,7 @@ export const markCheckedIn = (uid: string) => {
         if (p) {
             p.checked_in = 1;
             p.checkin_time = new Date().toISOString();
-            saveWebData(); // Persist
+            saveWebData();
         }
         return;
     }
@@ -141,6 +188,55 @@ export const markCheckedIn = (uid: string) => {
         );
     } catch (e) {
         console.error("Check-in failed", e);
+    }
+};
+
+// Mark participant as participated (verified and allowed entry)
+export const markParticipated = (uid: string) => {
+    if (Platform.OS === 'web') {
+        const p = webParticipants.find(p => p.uid === uid);
+        if (p) {
+            p.participated = 1;
+            p.checked_in = 1;
+            p.checkin_time = new Date().toISOString();
+            saveWebData();
+        }
+        return;
+    }
+    if (!db) return;
+
+    const timestamp = new Date().toISOString();
+    try {
+        db.runSync(
+            `UPDATE participants 
+             SET participated = 1, checked_in = 1, checkin_time = ? 
+             WHERE uid = ?;`,
+            [timestamp, uid]
+        );
+    } catch (e) {
+        console.error("Mark participated failed", e);
+    }
+};
+
+// Update payment verification status
+export const updatePaymentStatus = (uid: string, verified: boolean) => {
+    if (Platform.OS === 'web') {
+        const p = webParticipants.find(p => p.uid === uid);
+        if (p) {
+            p.payment_verified = verified ? 1 : 0;
+            saveWebData();
+        }
+        return;
+    }
+    if (!db) return;
+
+    try {
+        db.runSync(
+            `UPDATE participants SET payment_verified = ? WHERE uid = ?;`,
+            [verified ? 1 : 0, uid]
+        );
+    } catch (e) {
+        console.error("Update payment status failed", e);
     }
 };
 
@@ -167,7 +263,7 @@ export const markSynced = (uid: string) => {
         const p = webParticipants.find(p => p.uid === uid);
         if (p) {
             p.sync_status = 1;
-            saveWebData(); // Persist
+            saveWebData();
         }
         return;
     }
@@ -200,6 +296,24 @@ export const getAllParticipants = async (): Promise<any[]> => {
     }
 };
 
+// Get participants for a specific event
+export const getParticipantsByEvent = async (eventId: string): Promise<any[]> => {
+    if (Platform.OS === 'web') {
+        return webParticipants.filter(p => p.event_id === eventId);
+    }
+    if (!db) return [];
+
+    try {
+        return db.getAllSync(
+            `SELECT * FROM participants WHERE event_id = ? ORDER BY name ASC;`,
+            [eventId]
+        );
+    } catch (e) {
+        console.error("Get by event failed", e);
+        return [];
+    }
+};
+
 // Get strictly locally added participants (Newly Added)
 export const getOnSpotParticipants = async (): Promise<any[]> => {
     if (Platform.OS === 'web') {
@@ -215,5 +329,49 @@ export const getOnSpotParticipants = async (): Promise<any[]> => {
     } catch (e) {
         console.error("Get onspot failed", e);
         return [];
+    }
+};
+
+// Get count of participants for an event
+export const getEventParticipantCount = async (eventId: string): Promise<{ total: number; checkedIn: number }> => {
+    if (Platform.OS === 'web') {
+        const eventParticipants = webParticipants.filter(p => p.event_id === eventId);
+        const checkedIn = eventParticipants.filter(p => p.checked_in === 1).length;
+        return { total: eventParticipants.length, checkedIn };
+    }
+    if (!db) return { total: 0, checkedIn: 0 };
+
+    try {
+        const totalResult = db.getFirstSync(
+            `SELECT COUNT(*) as count FROM participants WHERE event_id = ?;`,
+            [eventId]
+        );
+        const checkedInResult = db.getFirstSync(
+            `SELECT COUNT(*) as count FROM participants WHERE event_id = ? AND checked_in = 1;`,
+            [eventId]
+        );
+        return {
+            total: totalResult?.count || 0,
+            checkedIn: checkedInResult?.count || 0
+        };
+    } catch (e) {
+        console.error("Get event count failed", e);
+        return { total: 0, checkedIn: 0 };
+    }
+};
+
+// Clear all data (for testing/reset)
+export const clearAllParticipants = () => {
+    if (Platform.OS === 'web') {
+        webParticipants = [];
+        saveWebData();
+        return;
+    }
+    if (!db) return;
+
+    try {
+        db.runSync(`DELETE FROM participants;`);
+    } catch (e) {
+        console.error("Clear all failed", e);
     }
 };

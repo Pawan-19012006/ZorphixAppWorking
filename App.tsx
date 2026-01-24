@@ -36,6 +36,7 @@ if (Platform.OS === 'web') {
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './navigation/AppNavigator';
+import { EventProvider } from './navigation/EventContext';
 import { StatusBar } from 'expo-status-bar';
 import { registerRootComponent } from 'expo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -87,12 +88,14 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <GestureHandlerRootView style={styles.container}>
-                <NavigationContainer>
-                    <AppNavigator />
-                    <StatusBar style="auto" />
-                </NavigationContainer>
-            </GestureHandlerRootView>
+            <EventProvider>
+                <GestureHandlerRootView style={styles.container}>
+                    <NavigationContainer>
+                        <AppNavigator />
+                        <StatusBar style="auto" />
+                    </NavigationContainer>
+                </GestureHandlerRootView>
+            </EventProvider>
         </ErrorBoundary>
     );
 }

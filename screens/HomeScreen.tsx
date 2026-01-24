@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Alert, Dimensions, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Alert, Dimensions, Animated, Easing } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList, Event } from '../navigation/types';
+import { RootStackParamList } from '../navigation/types';
+import { useEventContext } from '../navigation/EventContext';
 import { syncFromFirebase, syncOnspotToFirebase } from '../services/SyncService';
+import { logoutAdmin } from '../services/firebase';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -10,65 +12,13 @@ type Props = {
     navigation: HomeScreenNavigationProp;
 };
 
-
-
-const DUMMY_EVENTS: Event[] = [
-    {
-        id: '1',
-        title: 'Pixel Reforge',
-        category: 'Non-Technical',
-        date: 'Oct 24, 2025',
-        description: ''
-    },
-    {
-        id: '2',
-        title: 'PromptCraft',
-        category: 'Technical',
-        date: 'Oct 25, 2025',
-        description: ''
-    },
-    {
-        id: '3',
-        title: 'AlgoPulse',
-        category: 'Technical',
-        date: 'Oct 24, 2025',
-        description: ''
-    },
-    {
-        id: '4',
-        title: 'CodeBack',
-        category: 'Technical',
-        date: 'Oct 26, 2025',
-        description: ''
-    },
-    {
-        id: '5',
-        title: 'Sip to Survive',
-        category: 'Non-Technical',
-        date: 'Oct 25, 2025',
-        description: ''
-    },
-    {
-        id: '6',
-        title: 'CodeCrypt',
-        category: 'Technical',
-        date: 'Oct 26, 2025',
-        description: ''
-    },
-    {
-        id: '7',
-        title: 'LinkLogic',
-        category: 'Technical',
-        date: 'Oct 26, 2025',
-        description: ''
-    },
-];
-
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-    const slideAnim = React.useRef(new Animated.Value(-width * 0.75)).current; // Start hidden (left)
+    const [syncing, setSyncing] = React.useState(false);
+    const slideAnim = React.useRef(new Animated.Value(-width * 0.75)).current;
+    const { eventContext, setEventContext } = useEventContext();
 
     const toggleMenu = () => {
         const toValue = isMenuOpen ? -width * 0.75 : 0;
@@ -85,17 +35,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         if (isMenuOpen) toggleMenu();
     };
 
-    const getCategoryColor = (category: string) => {
-        switch (category) {
-            case 'Technical': return '#B8860B'; // Dark Golden Rod
-            case 'Workshop': return '#DAA520'; // Golden Rod
-            case 'Non-Technical': return '#FFD700'; // Gold
-            default: return '#95a5a6';
-        }
-    };
-
     const handleSync = async () => {
         closeMenu();
+        if (syncing) return;
+
+        setSyncing(true);
         try {
             // 1. Pull latest data
             await syncFromFirebase();
@@ -106,24 +50,44 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             Alert.alert("Sync Complete", `Data updated.\nUploaded ${uploadedCount} on-spot registrations.`);
         } catch (error) {
             Alert.alert("Sync Error", "Failed to sync with server. Check internet connection.");
+        } finally {
+            setSyncing(false);
         }
     };
 
-    const renderEventItem = ({ item }: { item: Event }) => (
-        <TouchableOpacity
-            style={styles.card}
-            onPress={() => { closeMenu(); navigation.navigate('EventDetail', { event: item }); }}
-            activeOpacity={0.9}
-        >
-            <View style={styles.cardHeader}>
-                <Text style={styles.eventTitle}>{item.title}</Text>
-                <View style={[styles.badge, { borderColor: getCategoryColor(item.category) }]}>
-                    <Text style={[styles.badgeText, { color: getCategoryColor(item.category) }]}>{item.category}</Text>
-                </View>
-            </View>
-            <Text style={styles.eventDate}>{item.date}</Text>
-        </TouchableOpacity>
-    );
+    const handleLogout = async () => {
+        closeMenu();
+        Alert.alert(
+            "Logout",
+            "Are you sure you want to logout?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Logout",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await logoutAdmin();
+                            setEventContext(null);
+                            navigation.replace('Login');
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to logout");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleNewRegister = () => {
+        closeMenu();
+        navigation.navigate('Registration');
+    };
+
+    const handleVerifyEnrollment = () => {
+        closeMenu();
+        navigation.navigate('QRScanner');
+    };
 
     return (
         <View style={styles.container}>
@@ -139,22 +103,44 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>ZORPHIX</Text>
                 </View>
-                <TouchableOpacity onPress={handleSync} style={styles.syncButton}>
-                    <Text style={styles.syncIcon}>🔄</Text>
+                <TouchableOpacity onPress={handleSync} style={styles.syncButton} disabled={syncing}>
+                    <Text style={[styles.syncIcon, syncing && styles.syncingIcon]}>
+                        {syncing ? '⏳' : '🔄'}
+                    </Text>
                 </TouchableOpacity>
             </View>
 
             {/* Main Content */}
-            <TouchableOpacity activeOpacity={1} onPress={closeMenu} style={{ flex: 1 }}>
-                <FlatList
-                    data={DUMMY_EVENTS}
-                    renderItem={renderEventItem}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.listContent}
-                    showsVerticalScrollIndicator={true}
-                    persistentScrollbar={true}
-                    indicatorStyle="white"
-                />
+            <TouchableOpacity activeOpacity={1} onPress={closeMenu} style={styles.mainContent}>
+                {/* Current Event Badge */}
+                <View style={styles.eventBadge}>
+                    <Text style={styles.eventLabel}>Managing Event</Text>
+                    <Text style={styles.eventName}>{eventContext?.eventName || 'No Event'}</Text>
+                    <Text style={styles.adminEmail}>{eventContext?.adminEmail}</Text>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={handleNewRegister}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.actionIcon}>📝</Text>
+                        <Text style={styles.actionTitle}>CREATE USER</Text>
+                        <Text style={styles.actionSubtitle}>Onspot</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.verifyButton]}
+                        onPress={handleVerifyEnrollment}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.actionIcon}>✅</Text>
+                        <Text style={[styles.actionTitle, styles.verifyTitle]}>VERIFY ENROLLMENT</Text>
+                        <Text style={[styles.actionSubtitle, styles.verifySubtitle]}>Enroll Now</Text>
+                    </TouchableOpacity>
+                </View>
             </TouchableOpacity>
 
             {/* Side Dashboard (Menu) */}
@@ -172,6 +158,26 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('RecentRegistrations'); }}>
                     <Text style={[styles.menuItemText, { color: '#FFD700' }]}>🆕  Newly Added Students</Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Export'); }}>
+                    <Text style={styles.menuItemText}>📤  Export Data</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Import'); }}>
+                    <Text style={styles.menuItemText}>📥  Import Data</Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity style={styles.menuItem} onPress={handleSync}>
+                    <Text style={styles.menuItemText}>🔄  Sync with Server</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+                    <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>🚪  Logout</Text>
                 </TouchableOpacity>
             </Animated.View>
 
@@ -193,7 +199,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: 50, // Safe area top
+        paddingTop: 50,
         paddingBottom: 20,
         backgroundColor: '#000',
         borderBottomWidth: 1,
@@ -215,6 +221,9 @@ const styles = StyleSheet.create({
     syncIcon: {
         fontSize: 24,
     },
+    syncingIcon: {
+        opacity: 0.5,
+    },
     menuLine: {
         width: 25,
         height: 3,
@@ -222,45 +231,73 @@ const styles = StyleSheet.create({
         marginBottom: 5,
         borderRadius: 2
     },
-    listContent: {
-        padding: 16,
-    },
-    card: {
-        backgroundColor: '#111',
-        borderRadius: 12,
+    mainContent: {
+        flex: 1,
         padding: 20,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: '#333',
-        elevation: 2,
+        justifyContent: 'center',
     },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    eventBadge: {
+        backgroundColor: '#111',
+        borderRadius: 16,
+        padding: 24,
+        marginBottom: 40,
+        borderWidth: 2,
+        borderColor: '#FFD700',
         alignItems: 'center',
+    },
+    eventLabel: {
+        fontSize: 12,
+        color: '#888',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
         marginBottom: 8,
     },
-    eventTitle: {
-        fontSize: 18,
+    eventName: {
+        fontSize: 28,
         fontWeight: 'bold',
-        color: '#FFF',
-        flex: 1,
+        color: '#FFD700',
+        textAlign: 'center',
     },
-    badge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 20,
-        marginLeft: 10,
-        borderWidth: 1,
-        backgroundColor: 'transparent'
-    },
-    badgeText: {
+    adminEmail: {
         fontSize: 12,
-        fontWeight: 'bold',
+        color: '#666',
+        marginTop: 8,
     },
-    eventDate: {
+    buttonContainer: {
+        gap: 20,
+    },
+    actionButton: {
+        backgroundColor: '#111',
+        borderRadius: 16,
+        padding: 30,
+        borderWidth: 2,
+        borderColor: '#333',
+        alignItems: 'center',
+    },
+    verifyButton: {
+        backgroundColor: '#FFD700',
+        borderColor: '#FFD700',
+    },
+    actionIcon: {
+        fontSize: 48,
+        marginBottom: 12,
+    },
+    actionTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#FFD700',
+        letterSpacing: 1,
+    },
+    verifyTitle: {
+        color: '#000',
+    },
+    actionSubtitle: {
         fontSize: 14,
         color: '#888',
+        marginTop: 4,
+    },
+    verifySubtitle: {
+        color: '#333',
     },
 
     // Side Menu Styles

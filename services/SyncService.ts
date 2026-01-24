@@ -1,9 +1,7 @@
-import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, writeBatch, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
 import { insertParticipant, getUnsyncedOnspot, markSynced } from "./sqlite";
 
-// 1. Sync FROM Firebase (Pre-Event)
-// Fetches all events and their participants, inserting them into local SQLite
 // 1. Sync FROM Firebase (Pre-Event)
 // Fetches all registrations and inserts them into local SQLite
 // Maps the 'events' array to multiple local participant entries
@@ -15,40 +13,53 @@ export const syncFromFirebase = async () => {
         const snapshot = await getDocs(collection(db, "registrations"));
         let totalSynced = 0;
 
-        for (const doc of snapshot.docs) {
-            const data = doc.data();
+        for (const docSnap of snapshot.docs) {
+            const data = docSnap.data();
             const events = data.events || []; // Array of event names
-            const firestoreUid = data.uid || doc.id;
+            const firestoreUid = data.uid || docSnap.id;
+            const payments = data.payments || [];
 
             // For each event the user is registered for, create a local record
             for (const eventName of events) {
                 // Create a unique local UID so one user can be in multiple events
-                // Format: FIREBASEUID_EVENTNAME
+                // Format: FIREBASEUID_EVENTNAME (spaces removed)
                 const localUid = `${firestoreUid}_${eventName.replace(/\s+/g, '')}`;
+
+                // Check if payment is verified for this event
+                const paymentVerified = payments.some(
+                    (p: any) => p.eventNames?.includes(eventName) && p.verified
+                ) ? 1 : 0;
 
                 insertParticipant(
                     localUid,
-                    eventName, // Using name as ID for now
-                    data.displayName || "Unknown",
+                    eventName,
+                    data.displayName || data.name || "Unknown",
                     data.phone || "",
                     data.email || "",
+                    data.college || "",
+                    data.collegeOther || "",
+                    data.degree || "",
+                    data.degreeOther || "",
+                    data.department || "",
+                    data.departmentOther || "",
+                    data.year || "",
                     'WEB',
-                    1,
-                    0
+                    1,  // sync_status: already synced from server
+                    0   // checked_in: not checked in yet
                 );
                 totalSynced++;
             }
         }
 
-        console.log(`Sync complete. Synced ${totalSynced} records.`);
-        return true;
+        console.log(`Sync complete. Synced ${totalSynced} participant-event records.`);
+        return totalSynced;
     } catch (error) {
-        console.error("Sync failed:", error);
+        console.error("Sync from Firebase failed:", error);
         throw error;
     }
 };
 
-// 2. Sync ON-SPOT TO Firebase (Post-Event)
+// 2. Sync ON-SPOT registrations TO Firebase (Post-Event)
 // Pushes locally registered 'ONSPOT' participants to Firestore
 export const syncOnspotToFirebase = async () => {
     try {
@@ -64,17 +75,33 @@ export const syncOnspotToFirebase = async () => {
         const batch = writeBatch(db);
 
         for (const p of unsyncedParams) {
-            // Use the locally generated UID
-            const userRef = doc(db, `events/${p.event_id}/participants/${p.uid}`);
+            // For on-spot registrations, create a new document in registrations collection
+            // Using the local UID as the document ID
+            const userRef = doc(db, "registrations", p.uid);
 
             batch.set(userRef, {
+                uid: p.uid,
+                displayName: p.name,
                 name: p.name,
-                phone: p.phone,
                 email: p.email,
+                phone: p.phone,
+                college: p.college || '',
+                collegeOther: p.college_other || '',
+                degree: p.degree || '',
+                degreeOther: p.degree_other || '',
+                department: p.department || '',
+                departmentOther: p.department_other || '',
+                year: p.year || '',
+                events: [p.event_id],
+                payments: [],
+                profileCompleted: true,
+                registeredAt: serverTimestamp(),
+                createdAt: serverTimestamp(),
+                source: 'ONSPOT',
                 checkedIn: p.checked_in === 1,
                 checkinTime: p.checkin_time,
-                source: 'ONSPOT'
-            });
+                participated: p.participated === 1
+            }, { merge: true });
         }
 
         await batch.commit();
@@ -84,10 +111,85 @@ export const syncOnspotToFirebase = async () => {
             markSynced(p.uid);
         }
 
+        console.log(`Successfully uploaded ${unsyncedParams.length} on-spot registrations.`);
         return unsyncedParams.length;
 
     } catch (error) {
-        console.error("Upload failed:", error);
+        console.error("Upload to Firebase failed:", error);
+        throw error;
+    }
+};
+
+// 3. Update participation status in Firebase
+// Called after marking someone as participated locally
+export const updateParticipationInFirebase = async (uid: string, eventName: string) => {
+    try {
+        const userRef = doc(db, "registrations", uid);
+
+        await setDoc(userRef, {
+            participated: true,
+            participatedEvents: [eventName],
+            lastParticipationTime: serverTimestamp()
+        }, { merge: true });
+
+        console.log(`Updated participation status in Firebase for ${uid}`);
+        return true;
+    } catch (error) {
+        console.error("Failed to update participation in Firebase:", error);
+        // Don't throw - local update is still valid
+        return false;
+    }
+};
+
+// 4. Sync event-specific data
+// Fetches only participants for a specific event
+export const syncEventFromFirebase = async (eventName: string) => {
+    try {
+        console.log(`Syncing participants for event: ${eventName}`);
+
+        const snapshot = await getDocs(collection(db, "registrations"));
+        let eventSynced = 0;
+
+        for (const docSnap of snapshot.docs) {
+            const data = docSnap.data();
+            const events = data.events || [];
+
+            // Only process if user is registered for this event
+            if (!events.includes(eventName)) continue;
+
+            const firestoreUid = data.uid || docSnap.id;
+            const payments = data.payments || [];
+
+            const localUid = `${firestoreUid}_${eventName.replace(/\s+/g, '')}`;
+
+            const paymentVerified = payments.some(
+                (p: any) => p.eventNames?.includes(eventName) && p.verified
+            ) ? 1 : 0;
+
+            insertParticipant(
+                localUid,
+                eventName,
+                data.displayName || data.name || "Unknown",
+                data.phone || "",
+                data.email || "",
+                data.college || "",
+                data.collegeOther || "",
+                data.degree || "",
+                data.degreeOther || "",
+                data.department || "",
+                data.departmentOther || "",
+                data.year || "",
+                'WEB',
+                1,
+                0
+            );
+            eventSynced++;
+        }
+
+        console.log(`Event sync complete. Synced ${eventSynced} participants for ${eventName}.`);
+        return eventSynced;
+    } catch (error) {
+        console.error(`Sync for event ${eventName} failed:`, error);
         throw error;
     }
 };

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, Alert, StatusBar, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, Alert, StatusBar, ScrollView, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+import { useEventContext } from '../navigation/EventContext';
+import { loginAdmin, getAdminEventMapping } from '../services/firebase';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -10,28 +12,68 @@ type Props = {
 };
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const { setEventContext } = useEventContext();
 
-    const handleLogin = () => {
-        if (!username || !password) {
-            Alert.alert('Error', 'Please enter both username and password.');
+    const handleLogin = async () => {
+        if (!email || !password) {
+            Alert.alert('Error', 'Please enter both email and password.');
             return;
         }
 
-        // Hardcoded credentials as requested
-        if (username === 'admin' && password === 'zorphix') {
+        setLoading(true);
+
+        try {
+            // Authenticate with Firebase
+            const user = await loginAdmin(email, password);
+
+            // Get the event mapped to this admin
+            const eventName = await getAdminEventMapping(email);
+
+            if (!eventName) {
+                Alert.alert(
+                    'Access Denied',
+                    'Your account is not mapped to any event. Please contact the administrator.'
+                );
+                setLoading(false);
+                return;
+            }
+
+            // Set global event context
+            setEventContext({
+                eventName: eventName,
+                adminEmail: email
+            });
+
+            // Navigate to home
             navigation.replace('Home');
-        } else {
-            Alert.alert('Error', 'Invalid credentials. Please try again.');
+        } catch (error: any) {
+            console.error('Login error:', error);
+
+            let errorMessage = 'Login failed. Please try again.';
+            if (error.code === 'auth/user-not-found') {
+                errorMessage = 'No account found with this email.';
+            } else if (error.code === 'auth/wrong-password') {
+                errorMessage = 'Incorrect password.';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'Invalid email format.';
+            } else if (error.code === 'auth/network-request-failed') {
+                errorMessage = 'Network error. Please check your connection.';
+            }
+
+            Alert.alert('Login Error', errorMessage);
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#000000" />
-            <ScrollView 
+            <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 keyboardShouldPersistTaps="handled"
             >
@@ -47,17 +89,20 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                 resizeMode="contain"
                             />
                         </View>
-                        <Text style={styles.title}>Zorphix Login</Text>
+                        <Text style={styles.title}>Event Admin Login</Text>
+                        <Text style={styles.subtitle}>Login with your assigned event email</Text>
 
                         <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Username</Text>
+                            <Text style={styles.label}>Email</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Enter username"
+                                placeholder="Enter admin email"
                                 placeholderTextColor="#666"
-                                value={username}
-                                onChangeText={setUsername}
+                                value={email}
+                                onChangeText={setEmail}
                                 autoCapitalize="none"
+                                keyboardType="email-address"
+                                editable={!loading}
                             />
                         </View>
 
@@ -71,15 +116,28 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                                     value={password}
                                     onChangeText={setPassword}
                                     secureTextEntry={!showPassword}
+                                    editable={!loading}
                                 />
-                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                                <TouchableOpacity
+                                    onPress={() => setShowPassword(!showPassword)}
+                                    style={styles.eyeIcon}
+                                    disabled={loading}
+                                >
                                     <Text style={styles.eyeText}>{showPassword ? 'Hide' : 'Show'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
 
-                        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                            <Text style={styles.buttonText}>LOGIN</Text>
+                        <TouchableOpacity
+                            style={[styles.button, loading && styles.buttonDisabled]}
+                            onPress={handleLogin}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#000" />
+                            ) : (
+                                <Text style={styles.buttonText}>LOGIN</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
@@ -140,6 +198,12 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         color: '#FFD700',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 14,
+        color: '#888',
         marginBottom: 30,
         textAlign: 'center',
     },
@@ -212,6 +276,9 @@ const styles = StyleSheet.create({
                 cursor: 'pointer',
             },
         }),
+    },
+    buttonDisabled: {
+        opacity: 0.7,
     },
     buttonText: {
         color: '#000',

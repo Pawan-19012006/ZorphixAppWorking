@@ -3,11 +3,12 @@ import { Platform } from 'react-native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
-import EventDetailScreen from '../screens/EventDetailScreen';
 import RegistrationScreen from '../screens/RegistrationScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import DatabaseViewerScreen from '../screens/DatabaseViewerScreen';
 import RecentRegistrationsScreen from '../screens/RecentRegistrationsScreen';
+import ExportScreen from '../screens/ExportScreen';
+import ImportScreen from '../screens/ImportScreen';
 import { RootStackParamList } from './types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -52,19 +53,14 @@ const AppNavigator = () => {
                 }}
             />
             <Stack.Screen
-                name="EventDetail"
-                component={EventDetailScreen}
-                options={{ title: 'Event Details' }}
-            />
-            <Stack.Screen
                 name="Registration"
                 component={RegistrationScreen}
-                options={{ title: 'Register' }}
+                options={{ title: 'New Registration' }}
             />
             <Stack.Screen
                 name="QRScanner"
                 component={QRScannerScreen}
-                options={{ title: 'Scan QR' }}
+                options={{ title: 'Verify Enrollment' }}
             />
             <Stack.Screen
                 name="DatabaseViewer"
@@ -75,6 +71,16 @@ const AppNavigator = () => {
                 name="RecentRegistrations"
                 component={RecentRegistrationsScreen}
                 options={{ title: 'Newly Added' }}
+            />
+            <Stack.Screen
+                name="Export"
+                component={ExportScreen}
+                options={{ title: 'Export Data' }}
+            />
+            <Stack.Screen
+                name="Import"
+                component={ImportScreen}
+                options={{ title: 'Import Data' }}
             />
         </Stack.Navigator >
     );
