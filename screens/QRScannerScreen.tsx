@@ -25,6 +25,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
     // Team Scanning State
     const mode = route.params?.mode || 'INDIVIDUAL';
     const totalTeamSize = route.params?.teamSize || 1;
+    const teamNameParam = route.params?.teamName || '';
     const [scannedCount, setScannedCount] = useState(0);
     const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
@@ -71,7 +72,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
     };
 
     const finalizeEntry = (participant: any) => {
-        incrementParticipation(participant.uid, currentEvent);
+        incrementParticipation(participant.uid, currentEvent, teamNameParam);
         console.log(`✅ Incremented participation for ${participant.name}`);
 
         if (mode === 'TEAM') {
@@ -255,7 +256,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                         0, // sync_status
                         0, // payment_verified
                         0, // participated
-                        '', // team_name
+                        teamNameParam, // team_name
                         '', // team_members
                         'free' // event_type
                     );

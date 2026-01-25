@@ -20,12 +20,12 @@ export type RootStackParamList = {
         mode?: 'INDIVIDUAL' | 'TEAM';
         teamSize?: number;
         teamName?: string; // Add team name parameter
-
     } | undefined;
     DatabaseViewer: undefined;
     RecentRegistrations: undefined;
     Export: undefined;
     Import: undefined;
+    TeamScannerSetup: undefined;
 };
 
 // Participant data structure matching Firebase schema

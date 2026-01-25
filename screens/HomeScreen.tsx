@@ -98,15 +98,26 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleStartScanning = () => {
         setShowVerifyModal(false);
-        navigation.navigate('QRScanner', {
-            mode: verifyMode,
-            teamSize: verifyMode === 'TEAM' ? teamSize : 1
-        });
+        if (verifyMode === 'TEAM') {
+            navigation.navigate('TeamScannerSetup');
+        } else {
+            navigation.navigate('QRScanner', {
+                mode: 'INDIVIDUAL',
+                teamSize: 1
+            });
+        }
     };
 
     const handleViewDatabase = () => {
         closeMenu();
+        // Restrict access to specific admin account
+        const allowedEmail = 'admin@zorphix.com';
+
+        // if (eventContext?.adminEmail === allowedEmail) {
         navigation.navigate('DatabaseViewer');
+        // } else {
+        // Alert.alert('Access Denied', 'This feature is restricted to the main administrator only.');
+        // }
     };
 
     return (
@@ -233,26 +244,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
 
-                        {/* Team Size Stepper */}
+                        {/* Team Info Text */}
                         {verifyMode === 'TEAM' && (
-                            <View style={styles.stepperContainer}>
-                                <Text style={styles.stepperLabel}>Team Size:</Text>
-                                <View style={styles.stepperControls}>
-                                    <TouchableOpacity
-                                        style={styles.stepperButton}
-                                        onPress={() => setTeamSize(Math.max(2, teamSize - 1))}
-                                    >
-                                        <Text style={styles.stepperBtnText}>-</Text>
-                                    </TouchableOpacity>
-                                    <Text style={styles.stepperValue}>{teamSize}</Text>
-                                    <TouchableOpacity
-                                        style={styles.stepperButton}
-                                        onPress={() => setTeamSize(Math.min(10, teamSize + 1))}
-                                    >
-                                        <Text style={styles.stepperBtnText}>+</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
+                            <Text style={{ color: '#888', textAlign: 'center', marginBottom: 20 }}>
+                                You will be asked to enter Team Name and Size in the next screen.
+                            </Text>
                         )}
 
                         <View style={styles.verifyActionButtons}>

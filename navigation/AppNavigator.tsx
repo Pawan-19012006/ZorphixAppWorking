@@ -9,6 +9,7 @@ import DatabaseViewerScreen from '../screens/DatabaseViewerScreen';
 import RecentRegistrationsScreen from '../screens/RecentRegistrationsScreen';
 import ExportScreen from '../screens/ExportScreen';
 import ImportScreen from '../screens/ImportScreen';
+import TeamScannerLauncher from '../screens/TeamScannerLauncher';
 import { RootStackParamList } from './types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -81,6 +82,11 @@ const AppNavigator = () => {
                 name="Import"
                 component={ImportScreen}
                 options={{ title: 'Import Data' }}
+            />
+            <Stack.Screen
+                name="TeamScannerSetup"
+                component={TeamScannerLauncher}
+                options={{ title: 'Team Setup' }}
             />
         </Stack.Navigator >
     );
