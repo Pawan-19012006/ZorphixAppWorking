@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Alert, Dimensions, Animated, Easing, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Alert, Dimensions, Animated, Easing, Modal, ActivityIndicator } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
@@ -128,16 +129,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <TouchableOpacity onPress={toggleMenu} style={styles.menuButton}>
-                        <View style={styles.menuLine} />
-                        <View style={styles.menuLine} />
-                        <View style={styles.menuLine} />
+                        <MaterialCommunityIcons name="menu" size={28} color="#FFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>ZORPHIX</Text>
                 </View>
                 <TouchableOpacity onPress={handleSync} style={styles.syncButton} disabled={syncing}>
-                    <Text style={[styles.syncIcon, syncing && styles.syncingIcon]}>
-                        {syncing ? '⏳' : '🔄'}
-                    </Text>
+                    {syncing ? (
+                        <ActivityIndicator size="small" color="#FFD700" />
+                    ) : (
+                        <MaterialCommunityIcons name="sync" size={24} color="#FFD700" />
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -157,7 +158,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                         onPress={handleNewRegister}
                         activeOpacity={0.8}
                     >
-                        <Text style={styles.actionIcon}>📝</Text>
+                        <MaterialCommunityIcons name="account-plus" size={32} color="#ffffffff" style={{ marginBottom: 10 }} />
                         <Text style={styles.actionTitle}>CREATE USER</Text>
                         <Text style={styles.actionSubtitle}>Onspot</Text>
                     </TouchableOpacity>
@@ -167,7 +168,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                         onPress={handleVerifyEnrollment}
                         activeOpacity={0.8}
                     >
-                        <Text style={styles.actionIcon}>✅</Text>
+                        <MaterialCommunityIcons name="qrcode-scan" size={32} color="#000" style={{ marginBottom: 10 }} />
                         <Text style={[styles.actionTitle, styles.verifyTitle]}>VERIFY ENROLLMENT</Text>
                         <Text style={[styles.actionSubtitle, styles.verifySubtitle]}>Enroll Now</Text>
                     </TouchableOpacity>
@@ -184,31 +185,37 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleViewDatabase}>
-                    <Text style={styles.menuItemText}>📂  View Full Database</Text>
+                    <MaterialCommunityIcons name="database" size={24} color="#FFF" style={{ marginRight: 15 }} />
+                    <Text style={styles.menuItemText}>View Full Database</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('RecentRegistrations'); }}>
-                    <Text style={[styles.menuItemText, { color: '#FFD700' }]}>🆕  Newly Added Students</Text>
+                    <MaterialCommunityIcons name="clipboard-account" size={24} color="#ffffffff" style={{ marginRight: 15 }} />
+                    <Text style={[styles.menuItemText, { color: '#ffffffff' }]}>Onspot Students</Text>
                 </TouchableOpacity>
 
                 <View style={styles.divider} />
 
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Export'); }}>
-                    <Text style={styles.menuItemText}>📤  Export Data</Text>
+                    <MaterialCommunityIcons name="file-export" size={24} color="#FFF" style={{ marginRight: 15 }} />
+                    <Text style={styles.menuItemText}>Export Data</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Import'); }}>
-                    <Text style={styles.menuItemText}>📥  Import Data</Text>
+                    <MaterialCommunityIcons name="file-import" size={24} color="#FFF" style={{ marginRight: 15 }} />
+                    <Text style={styles.menuItemText}>Import Data</Text>
                 </TouchableOpacity>
 
                 <View style={styles.divider} />
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleSync}>
-                    <Text style={styles.menuItemText}>🔄  Sync with Server</Text>
+                    <MaterialCommunityIcons name="sync" size={24} color="#FFF" style={{ marginRight: 15 }} />
+                    <Text style={styles.menuItemText}>Sync with Server</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-                    <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>🚪  Logout</Text>
+                    <MaterialCommunityIcons name="logout" size={24} color="#FF6B6B" style={{ marginRight: 15 }} />
+                    <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>Logout</Text>
                 </TouchableOpacity>
             </Animated.View>
 
@@ -330,7 +337,7 @@ const styles = StyleSheet.create({
     },
     eventLabel: {
         fontSize: 12,
-        color: '#888',
+        color: '#ffffffff',
         textTransform: 'uppercase',
         letterSpacing: 2,
         marginBottom: 8,
@@ -343,7 +350,7 @@ const styles = StyleSheet.create({
     },
     adminEmail: {
         fontSize: 12,
-        color: '#666',
+        color: '#ffffffff',
         marginTop: 8,
     },
     buttonContainer: {
@@ -376,11 +383,11 @@ const styles = StyleSheet.create({
     },
     actionSubtitle: {
         fontSize: 14,
-        color: '#888',
+        color: '#ffffffff',
         marginTop: 4,
     },
     verifySubtitle: {
-        color: '#333',
+        color: '#000000ff',
     },
 
     // Side Menu Styles
