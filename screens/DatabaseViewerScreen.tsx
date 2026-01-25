@@ -88,7 +88,7 @@ export default function DatabaseViewerScreen() {
     const loadData = async () => {
         try {
             const data = await getAllParticipants();
-            console.log('📊 RAW DATABASE DUMP:', JSON.stringify(data, null, 2));
+            // console.log('📊 RAW DATABASE DUMP:', JSON.stringify(data, null, 2));
             setGroupedUsers(groupIndividualData(data));
             setGroupedTeams(groupTeamData(data));
         } catch (error) {

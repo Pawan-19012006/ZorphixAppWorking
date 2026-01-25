@@ -106,32 +106,32 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     // Update form fields when prefilled values change (handles navigation re-use)
     React.useEffect(() => {
-        console.log('📥 RegistrationScreen: Received params:', {
-            prefilledUID, prefilledName, prefilledEmail, prefilledPhone, prefilledCollege, prefilledDept, prefilledYear
-        });
+        // console.log('📥 RegistrationScreen: Received params:', {
+        //     prefilledUID, prefilledName, prefilledEmail, prefilledPhone, prefilledCollege, prefilledDept, prefilledYear
+        // });
 
         if (prefilledName) {
-            console.log(`✅ Auto-filling name: ${prefilledName}`);
+            // console.log(`✅ Auto-filling name: ${prefilledName}`);
             setName(prefilledName);
         }
         if (prefilledEmail) {
-            console.log(`✅ Auto-filling email: ${prefilledEmail}`);
+            // console.log(`✅ Auto-filling email: ${prefilledEmail}`);
             setEmail(prefilledEmail);
         }
         if (prefilledPhone) {
-            console.log(`✅ Auto-filling phone: ${prefilledPhone}`);
+            // console.log(`✅ Auto-filling phone: ${prefilledPhone}`);
             setPhone(prefilledPhone);
         }
         if (prefilledCollege) {
-            console.log(`✅ Auto-filling college: ${prefilledCollege}`);
+            // console.log(`✅ Auto-filling college: ${prefilledCollege}`);
             setCollege(prefilledCollege);
         }
         if (prefilledDept) {
-            console.log(`✅ Auto-filling dept: ${prefilledDept}`);
+            // console.log(`✅ Auto-filling dept: ${prefilledDept}`);
             setDepartment(prefilledDept);
         }
         if (prefilledYear) {
-            console.log(`✅ Auto-filling year: ${prefilledYear}`);
+            // console.log(`✅ Auto-filling year: ${prefilledYear}`);
             setYear(prefilledYear);
         }
     }, [

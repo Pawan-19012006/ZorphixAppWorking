@@ -57,8 +57,8 @@ const EVENT_ADMINS = [
 ];
 
 async function createEventAdminMappings() {
-    console.log('\n🚀 Creating Event Admin Mappings in Firestore...\n');
-    console.log('='.repeat(60));
+    // console.log('\n🚀 Creating Event Admin Mappings in Firestore...\n');
+    // console.log('='.repeat(60));
 
     let successCount = 0;
 
@@ -75,52 +75,52 @@ async function createEventAdminMappings() {
                 updatedAt: new Date().toISOString()
             });
 
-            console.log(`✅ ${admin.email}`);
-            console.log(`   Event: ${admin.eventName}`);
-            console.log(`   Password: ${password}`);
-            console.log('');
+            // console.log(`✅ ${admin.email}`);
+            // console.log(`   Event: ${admin.eventName}`);
+            // console.log(`   Password: ${password}`);
+            // console.log('');
             successCount++;
         } catch (error: any) {
             console.error(`❌ Failed: ${admin.email} - ${error.message}`);
         }
     }
 
-    console.log('='.repeat(60));
-    console.log(`\n✨ Firestore Setup Complete! Created ${successCount}/${EVENT_ADMINS.length} mappings`);
+    // console.log('='.repeat(60));
+    // console.log(`\n✨ Firestore Setup Complete! Created ${successCount}/${EVENT_ADMINS.length} mappings`);
 }
 
 // Print summary table
 function printCredentialsSummary() {
-    console.log('\n📋 CREDENTIALS SUMMARY');
-    console.log('='.repeat(60));
-    console.log('');
-    console.log('Email'.padEnd(35) + 'Password');
-    console.log('-'.repeat(60));
+    // console.log('\n📋 CREDENTIALS SUMMARY');
+    // console.log('='.repeat(60));
+    // console.log('');
+    // console.log('Email'.padEnd(35) + 'Password');
+    // console.log('-'.repeat(60));
 
     for (const admin of EVENT_ADMINS) {
         const password = generatePassword(admin.eventName);
-        console.log(`${admin.email.padEnd(35)} ${password}`);
+        // console.log(`${admin.email.padEnd(35)} ${password}`);
     }
 
-    console.log('');
-    console.log('⚠️  Create these users in Firebase Console → Authentication');
-    console.log('');
+    // console.log('');
+    // console.log('⚠️  Create these users in Firebase Console → Authentication');
+    // console.log('');
 }
 
 // Verify existing data
 async function verifyData() {
-    console.log('\n📊 Verifying Firestore data...\n');
+    // console.log('\n📊 Verifying Firestore data...\n');
 
     try {
         const snapshot = await getDocs(collection(db, 'event_admins'));
-        console.log(`Found ${snapshot.size} event admin mappings:\n`);
+        // console.log(`Found ${snapshot.size} event admin mappings:\n`);
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            console.log(`  ${data.email} -> ${data.eventName} (pwd: ${data.password})`);
+            // console.log(`  ${data.email} -> ${data.eventName} (pwd: ${data.password})`);
         });
     } catch (error: any) {
-        console.error('Error reading data:', error.message);
+        // console.error('Error reading data:', error.message);
     }
 }
 
@@ -133,6 +133,7 @@ async function main() {
 }
 
 main().catch(err => {
-    console.error('Script failed:', err);
+    // console.error('Script failed:', err);
+
     process.exit(1);
 });

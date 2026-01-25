@@ -39,7 +39,7 @@ if (Platform.OS !== 'web') {
 // Initialize the database table with extended schema
 export const initParticipantDB = () => {
     if (Platform.OS === 'web') {
-        console.log("Web Mock DB Initialized (with localStorage)");
+        // console.log("Web Mock DB Initialized (with localStorage)");
         return;
     }
     if (!db) return;
@@ -53,7 +53,7 @@ export const initParticipantDB = () => {
         const hasEventType = tableInfo.some((col: any) => col.name === 'event_type');
 
         if (hasCheckedIn || !hasEventType) {
-            console.log("⚡ Starting Schema Migration: Refactoring to Simplified Schema");
+            // console.log("⚡ Starting Schema Migration: Refactoring to Simplified Schema");
 
             db.execSync('BEGIN TRANSACTION;');
             try {
@@ -114,9 +114,9 @@ export const initParticipantDB = () => {
                 db.execSync(`DROP TABLE participants_old;`);
 
                 db.execSync('COMMIT;');
-                console.log("✅ Schema Migration Complete: Schema Simplified.");
+                // console.log("✅ Schema Migration Complete: Schema Simplified.");
             } catch (migrationError) {
-                console.error("Migration failed, rolling back", migrationError);
+                // console.error("Migration failed, rolling back", migrationError);
                 db.execSync('ROLLBACK;');
             }
         } else {
@@ -146,7 +146,7 @@ export const initParticipantDB = () => {
         }
 
     } catch (e) {
-        console.error("Failed to init DB", e);
+        // console.error("Failed to init DB", e);
     }
 };
 
@@ -304,7 +304,7 @@ export const incrementParticipation = (uid: string, eventId: string, teamName?: 
                          sync_status = 0
                      WHERE uid = ? AND event_id = ?;`;
             params = [timestamp, teamName, uid, eventId];
-            console.log(`Incremented participation: ${uid} for ${eventId} (Team: ${teamName})`);
+            // console.log(`Incremented participation: ${uid} for ${eventId} (Team: ${teamName})`);
         } else {
             query = `UPDATE participants 
                      SET participated = participated + 1, 
@@ -312,7 +312,7 @@ export const incrementParticipation = (uid: string, eventId: string, teamName?: 
                          sync_status = 0
                      WHERE uid = ? AND event_id = ?;`;
             params = [timestamp, uid, eventId];
-            console.log(`Incremented participation: ${uid} for ${eventId}`);
+            // console.log(`Incremented participation: ${uid} for ${eventId}`);
         }
 
         db.runSync(query, params);

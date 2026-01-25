@@ -219,8 +219,8 @@ const SAMPLE_QUERIES = [
 ];
 
 async function createRegistrations() {
-    console.log('\n📝 Creating Sample Registrations...\n');
-    console.log('   (Using Firestore auto-generated UIDs)\n');
+    // console.log('\n📝 Creating Sample Registrations...\n');
+    // console.log('   (Using Firestore auto-generated UIDs)\n');
 
     const createdUsers: { uid: string; name: string; events: string[] }[] = [];
 
@@ -232,10 +232,10 @@ async function createRegistrations() {
             // Update the document to include the uid field
             await setDoc(docRef, { uid: docRef.id }, { merge: true });
 
-            console.log(`✅ Created: ${reg.name}`);
-            console.log(`   UID: ${docRef.id}`);
-            console.log(`   Events: ${reg.events.join(', ')}`);
-            console.log('');
+            // console.log(`✅ Created: ${reg.name}`);
+            // console.log(`   UID: ${docRef.id}`);
+            // console.log(`   Events: ${reg.events.join(', ')}`);
+            // console.log('');
 
             createdUsers.push({
                 uid: docRef.id,
@@ -243,7 +243,7 @@ async function createRegistrations() {
                 events: reg.events
             });
         } catch (error: any) {
-            console.error(`❌ Failed: ${reg.name} - ${error.message}`);
+            // console.error(`❌ Failed: ${reg.name} - ${error.message}`);
         }
     }
 
@@ -251,43 +251,43 @@ async function createRegistrations() {
 }
 
 async function createQueries() {
-    console.log('\n❓ Creating Sample Queries...\n');
+    // console.log('\n❓ Creating Sample Queries...\n');
 
     let count = 0;
     for (const query of SAMPLE_QUERIES) {
         try {
             const docRef = await addDoc(collection(db, 'queries'), query);
-            console.log(`✅ Created query from: ${query.name} (${docRef.id})`);
+            // console.log(`✅ Created query from: ${query.name} (${docRef.id})`);
             count++;
         } catch (error: any) {
             console.error(`❌ Failed: ${query.email} - ${error.message}`);
         }
     }
-    console.log(`\n   Created ${count}/${SAMPLE_QUERIES.length} queries`);
+    // console.log(`\n   Created ${count}/${SAMPLE_QUERIES.length} queries`);
 }
 
 async function main() {
-    console.log('\n🚀 Setting Up Sample Data for Zorphix...\n');
-    console.log('='.repeat(60));
+    // console.log('\n🚀 Setting Up Sample Data for Zorphix...\n');
+    // console.log('='.repeat(60));
 
     const users = await createRegistrations();
     await createQueries();
 
-    console.log('\n' + '='.repeat(60));
-    console.log('\n✨ Sample Data Setup Complete!\n');
-    console.log('📋 Created:');
-    console.log(`   - ${users.length} sample registrations`);
-    console.log(`   - ${SAMPLE_QUERIES.length} sample queries`);
+    // console.log('\n' + '='.repeat(60));
+    // console.log('\n✨ Sample Data Setup Complete!\n');
+    // console.log('📋 Created:');
+    // console.log(`   - ${users.length} sample registrations`);
+    // console.log(`   - ${SAMPLE_QUERIES.length} sample queries`);
 
-    console.log('\n🔑 Test UIDs for QR scanning:');
-    console.log('   (Use these in your QR code scanner app)\n');
+    // console.log('\n🔑 Test UIDs for QR scanning:');
+    // console.log('   (Use these in your QR code scanner app)\n');
     users.forEach(u => {
-        console.log(`   ${u.uid}`);
-        console.log(`   └─ ${u.name} (${u.events.join(', ')})\n`);
+        // console.log(`   ${u.uid}`);
+        // console.log(`   └─ ${u.name} (${u.events.join(', ')})\n`);
     });
 
-    console.log('💡 TIP: Save these UIDs to create QR codes for testing!');
-    console.log('');
+    // console.log('💡 TIP: Save these UIDs to create QR codes for testing!');
+    // console.log('');
 
     process.exit(0);
 }

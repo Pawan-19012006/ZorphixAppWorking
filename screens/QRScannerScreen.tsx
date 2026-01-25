@@ -78,7 +78,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
 
     const finalizeEntry = (participant: any) => {
         incrementParticipation(participant.uid, currentEvent, teamNameParam);
-        console.log(`✅ Incremented participation for ${participant.name}`);
+        // console.log(`✅ Incremented participation for ${participant.name}`);
 
         if (mode === 'TEAM') {
             const newCount = scannedCount + 1;
@@ -130,7 +130,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
 
         try {
             const scannedData = data.trim();
-            console.log('SCAN:', scannedData);
+            // console.log('SCAN:', scannedData);
 
             let uid = scannedData;
             let prefilledData: any = {};
@@ -138,7 +138,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
             // Try to parse JSON
             try {
                 const json = JSON.parse(scannedData);
-                console.log('Parsed QR JSON:', json);
+                // console.log('Parsed QR JSON:', json);
                 if (json.uid) {
                     uid = json.uid;
                     prefilledData = {
@@ -153,7 +153,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                 }
             } catch (e) {
                 // Not JSON, assume raw UID
-                console.log('Not JSON, treating as raw UID');
+                // console.log('Not JSON, treating as raw UID');
             }
 
             // Check for duplicates in current team session
@@ -171,7 +171,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
 
             // === USER EXISTS ===
             if (participant) {
-                console.log(`✅ User ${participant.name} found in DB.`);
+                // console.log(`✅ User ${participant.name} found in DB.`);
 
                 // === ALREADY ATTENDED ===
                 // === ALREADY ATTENDED (Counter Check) ===
@@ -231,11 +231,11 @@ export default function QRScannerScreen({ navigation, route }: Props) {
             }
 
             // === USER NOT FOUND ===
-            console.log('❌ User not found locally');
+            // console.log('❌ User not found locally');
 
             // Only redirect to registration if QR doesn't have email/phone
             if (!prefilledData.prefilledEmail && !prefilledData.prefilledPhone) {
-                console.log('⚠️ QR missing email/phone - redirecting to registration');
+                // console.log('⚠️ QR missing email/phone - redirecting to registration');
                 setProcessing(false);
                 navigation.navigate('Registration', {
                     ...prefilledData,
@@ -268,7 +268,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                 );
             } else {
                 // NON-PAID EVENT - Accept silently, register them automatically
-                console.log('📝 Auto-registering for non-paid event');
+                // console.log('📝 Auto-registering for non-paid event');
                 try {
                     await insertParticipant(
                         uid,
@@ -324,7 +324,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
         setProcessing(true);
         try {
             const { uid, name, email, phone, college, degree, department, year } = pendingParticipant;
-            console.log(`💸 Processing payment verification for ${uid}`);
+            // console.log(`💸 Processing payment verification for ${uid}`);
 
             // Update Firebase
             const success = await registerUserOnSpot(uid, currentEvent, 0);
@@ -350,7 +350,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                     'paid'
                 );
 
-                console.log(`✅ Payment verified for ${name}`);
+                // console.log(`✅ Payment verified for ${name}`);
 
                 // Close modal
                 setShowPaymentModal(false);

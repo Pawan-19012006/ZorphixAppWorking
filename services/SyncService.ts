@@ -7,7 +7,7 @@ import { insertParticipant, getUnsyncedOnspot, markSynced } from "./sqlite";
 // Maps the 'events' array to multiple local participant entries
 export const syncFromFirebase = async () => {
     try {
-        console.log("Starting sync from Firebase...");
+        // console.log("Starting sync from Firebase...");
 
         // Fetch all registrations
         const snapshot = await getDocs(collection(db, "registrations"));
@@ -53,7 +53,7 @@ export const syncFromFirebase = async () => {
             }
         }
 
-        console.log(`Sync complete. Synced ${totalSynced} participant-event records.`);
+        // console.log(`Sync complete. Synced ${totalSynced} participant-event records.`);
         return totalSynced;
     } catch (error) {
         console.error("Sync from Firebase failed:", error);
@@ -68,11 +68,11 @@ export const syncOnspotToFirebase = async () => {
         const unsyncedParams = await getUnsyncedOnspot();
 
         if (unsyncedParams.length === 0) {
-            console.log("No unsynced on-spot registrations found.");
+            // console.log("No unsynced on-spot registrations found.");
             return 0;
         }
 
-        console.log(`Found ${unsyncedParams.length} unsynced participants. Uploading...`);
+        // console.log(`Found ${unsyncedParams.length} unsynced participants. Uploading...`);
 
         const batch = writeBatch(db);
 
@@ -108,7 +108,7 @@ export const syncOnspotToFirebase = async () => {
             markSynced(p.uid, p.event_id);
         }
 
-        console.log(`Successfully uploaded ${unsyncedParams.length} on-spot registrations.`);
+        // console.log(`Successfully uploaded ${unsyncedParams.length} on-spot registrations.`);
         return unsyncedParams.length;
 
     } catch (error) {
@@ -129,7 +129,7 @@ export const updateParticipationInFirebase = async (uid: string, eventName: stri
             lastParticipationTime: serverTimestamp()
         }, { merge: true });
 
-        console.log(`Updated participation status in Firebase for ${uid}`);
+        // console.log(`Updated participation status in Firebase for ${uid}`);
         return true;
     } catch (error) {
         console.error("Failed to update participation in Firebase:", error);
@@ -142,7 +142,7 @@ export const updateParticipationInFirebase = async (uid: string, eventName: stri
 // Fetches only participants for a specific event
 export const syncEventFromFirebase = async (eventName: string) => {
     try {
-        console.log(`Syncing participants for event: ${eventName}`);
+        // console.log(`Syncing participants for event: ${eventName}`);
 
         const snapshot = await getDocs(collection(db, "registrations"));
         let eventSynced = 0;
@@ -184,7 +184,7 @@ export const syncEventFromFirebase = async (eventName: string) => {
             eventSynced++;
         }
 
-        console.log(`Event sync complete. Synced ${eventSynced} participants for ${eventName}.`);
+        // console.log(`Event sync complete. Synced ${eventSynced} participants for ${eventName}.`);
         return eventSynced;
     } catch (error) {
         console.error(`Sync for event ${eventName} failed:`, error);

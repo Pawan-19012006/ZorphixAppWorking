@@ -16,7 +16,7 @@ export interface User {
 
 export const initDB = async () => {
     if (Platform.OS === 'web') {
-        console.log('Web environment detected: Using in-memory storage');
+        // console.log('Web environment detected: Using in-memory storage');
         return;
     }
 
@@ -32,7 +32,7 @@ export const initDB = async () => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
-        console.log('Database initialized successfully');
+        // console.log('Database initialized successfully');
     } catch (error) {
         console.error('Error initializing database:', error);
     }

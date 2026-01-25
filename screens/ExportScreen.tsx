@@ -94,7 +94,7 @@ const ExportScreen: React.FC<Props> = ({ navigation }) => {
             await exportToExcel();
             // Sharing dialog handles the rest
         } catch (error: any) {
-            console.log(error);
+            // console.log(error);
             Alert.alert('Excel Export Failed', error.message || 'Failed to generate Excel file');
         } finally {
             setLoading(false);
