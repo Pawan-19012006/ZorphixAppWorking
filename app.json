@@ -1,23 +1,30 @@
 {
-    "expo": {
-        "name": "Zorphix",
-        "slug": "zorphix-app",
-        "version": "1.0.0",
-        "orientation": "portrait",
-        "userInterfaceStyle": "light",
-        "assetBundlePatterns": [
-            "**/*"
-        ],
-        "ios": {
-            "supportsTablet": true
-        },
-        "android": {
-            "adaptiveIcon": {
-                "backgroundColor": "#ffffff"
-            }
-        },
-        "plugins": [
-            "expo-sqlite"
-        ]
-    }
+  "expo": {
+    "name": "Zorphix",
+    "slug": "zorphix-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.karthikvvvvk.zorphixapp"
+    },
+    "plugins": [
+      "expo-sqlite"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "16bde836-9200-4ad6-afbc-c9be52b42647"
+      }
+    },
+    "owner": "karthikvvvvk"
+  }
 }
