@@ -15,13 +15,13 @@ import { getFirestore, doc, setDoc, collection, getDocs } from 'firebase/firesto
 import 'dotenv/config';
 
 const firebaseConfig = {
-    apiKey: process.env.VITE_FIREBASE_API_KEY,
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.VITE_FIREBASE_APP_ID,
-    measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
+    apiKey: "AIzaSyDu5oRJbf-gWqDZzMOK6HYmb0PBLXNqFEo",
+    authDomain: "zorphix-8d91e.firebaseapp.com",
+    projectId: "zorphix-8d91e",
+    storageBucket: "zorphix-8d91e.firebasestorage.app",
+    messagingSenderId: "1016587815374",
+    appId: "1:1016587815374:web:4972ea556e5e781aaac39f",
+    measurementId: "G-PK6GESKCSB"
 };
 
 

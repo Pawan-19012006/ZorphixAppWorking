@@ -348,17 +348,18 @@ export const updatePaymentStatus = (uid: string, verified: boolean, eventId?: st
     }
 };
 
-// Get all unsynced ONSPOT registrations for post-event sync
-export const getUnsyncedOnspot = async (): Promise<any[]> => {
+// Get all unsynced registrations for post-event sync (Any source)
+export const getUnsyncedParticipants = async (): Promise<any[]> => {
     if (Platform.OS === 'web') {
-        const unsynced = webParticipants.filter(p => p.source === 'ONSPOT' && p.sync_status === 0);
+        // Return any participant with sync_status = 0
+        const unsynced = webParticipants.filter(p => p.sync_status === 0);
         return unsynced;
     }
     if (!db) return [];
 
     try {
         return db.getAllSync(
-            `SELECT * FROM participants WHERE source = 'ONSPOT' AND sync_status = 0;`
+            `SELECT * FROM participants WHERE sync_status = 0;`
         );
     } catch (e) {
         console.error("Get unsynced failed", e);

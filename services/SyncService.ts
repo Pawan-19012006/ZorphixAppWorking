@@ -1,6 +1,6 @@
-import { collection, getDocs, doc, writeBatch, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, doc, writeBatch, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { db } from "./firebase";
-import { insertParticipant, getUnsyncedOnspot, markSynced } from "./sqlite";
+import { getUnsyncedParticipants, markSynced, insertParticipant } from "./sqlite";
 
 // 1. Sync FROM Firebase (Pre-Event)
 // Fetches all registrations and inserts them into local SQLite
@@ -61,11 +61,11 @@ export const syncFromFirebase = async () => {
     }
 };
 
-// 2. Sync ON-SPOT registrations TO Firebase (Post-Event)
-// Pushes locally registered 'ONSPOT' participants to Firestore
+// 2. Sync Local registrations (Onspot + Checks-ins) TO Firebase (Post-Event)
+// Pushes ALL locally modified participants (sync_status=0) to 'local_registrations' collection
 export const syncOnspotToFirebase = async () => {
     try {
-        const unsyncedParams = await getUnsyncedOnspot();
+        const unsyncedParams = await getUnsyncedParticipants();
 
         if (unsyncedParams.length === 0) {
             // console.log("No unsynced on-spot registrations found.");
@@ -77,9 +77,8 @@ export const syncOnspotToFirebase = async () => {
         const batch = writeBatch(db);
 
         for (const p of unsyncedParams) {
-            // For on-spot registrations, create a new document in registrations collection
-            // Using the local UID as the document ID
-            const userRef = doc(db, "registrations", p.uid);
+            // Write to 'local_registrations' collection
+            const userRef = doc(db, "local_registrations", p.uid);
 
             batch.set(userRef, {
                 uid: p.uid,
@@ -91,21 +90,21 @@ export const syncOnspotToFirebase = async () => {
                 degree: p.degree || '',
                 department: p.department || '',
                 year: p.year || '',
-                events: [p.event_id],
+                events: arrayUnion(p.event_id), // Ensure event is added
                 payments: p.payment_verified ? [{
-                    amount: 0,
+                    amount: 0, // Assuming 0 or passed, but schema doesn't store amount locally well yet for non-onspot
                     date: new Date().toISOString(),
                     eventNames: [p.event_id],
-                    id: `onspot_${Date.now()}`,
+                    id: `local_sync_${Date.now()}`,
                     status: "verified",
                     verified: true,
-                    type: "CASH_ONSPOT"
+                    type: "LOCAL_SYNC"
                 }] : [],
                 profileCompleted: true,
-                registeredAt: serverTimestamp(),
-                createdAt: serverTimestamp(),
-                source: 'ONSPOT',
-                participated: p.participated > 0
+                updatedAt: serverTimestamp(),
+                source: p.source || 'LOCAL_SYNC',
+                participated: p.participated > 0,
+                lastParticipationTime: p.participated > 0 ? (p.checkin_time || serverTimestamp()) : null
             }, { merge: true });
         }
 
@@ -129,11 +128,12 @@ export const syncOnspotToFirebase = async () => {
 // Called after marking someone as participated locally
 export const updateParticipationInFirebase = async (uid: string, eventName: string) => {
     try {
-        const userRef = doc(db, "registrations", uid);
+        // Update participation status in 'local_registrations'
+        const userRef = doc(db, "local_registrations", uid);
 
         await setDoc(userRef, {
             participated: true,
-            participatedEvents: [eventName],
+            participatedEvents: arrayUnion(eventName), // Use arrayUnion to append
             lastParticipationTime: serverTimestamp()
         }, { merge: true });
 

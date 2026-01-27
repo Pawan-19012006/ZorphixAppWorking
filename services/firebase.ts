@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, initializeFirestore, collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { getFirestore, initializeFirestore, collection, getDocs, query, where, doc, getDoc, updateDoc, setDoc, arrayUnion } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
 import { Platform } from "react-native";
 
@@ -28,6 +28,7 @@ if (Platform.OS === 'web') {
 // Initialize Firestore with settings to improve connectivity
 export const db = initializeFirestore(app, {
     experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true,
 });
 
 // Initialize Auth
@@ -128,17 +129,20 @@ export const registerUserOnSpot = async (
     amountPaid: number = 0
 ): Promise<boolean> => {
     try {
+        // Validation: Check if user exists in the main 'registrations' collection (Source of Truth)
         const userRef = doc(db, "registrations", userUid);
         const userDoc = await getDoc(userRef);
 
         if (!userDoc.exists()) {
-            console.error("User does not exist in Firebase, cannot register on-spot.");
-            // In a real scenario, you might want to create the user doc here if it doesn't exist
-            // but for now we assume they have a base registration.
+            console.error("User does not exist in registrations (Source of Truth), cannot register on-spot.");
             return false;
         }
 
-        await updateDoc(userRef, {
+        // Write to: 'local_registrations'
+        const localUserRef = doc(db, "local_registrations", userUid);
+
+        // We use setDoc with merge: true to create the document if it doesn't exist
+        await setDoc(localUserRef, {
             events: arrayUnion(eventName),
             payments: arrayUnion({
                 amount: amountPaid,
@@ -149,8 +153,9 @@ export const registerUserOnSpot = async (
                 verified: true,
                 type: "CASH_ONSPOT"
             })
-        });
+        }, { merge: true });
 
+        console.log(`Successfully registered on-spot in local_registrations for ${userUid}`);
         return true;
     } catch (error) {
         console.error("Failed to register user on-spot:", error);

@@ -48,15 +48,18 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         setSyncing(true);
         try {
-            // 1. Pull latest data
-            await syncFromFirebase();
-
-            // 2. Push offline records
+            // 1. Write to Firebase (Push offline records)
+            // We do this first so that the server has the latest local data
             const uploadedCount = await syncOnspotToFirebase();
+
+            // 2. Read from Firebase (Pull latest data)
+            // This ensures we get any updates from other devices/admin and also confirm our pushed data
+            await syncFromFirebase();
 
             Alert.alert("Sync Complete", `Data updated.\nUploaded ${uploadedCount} on-spot registrations.`);
         } catch (error) {
-            Alert.alert("Sync Error", "Failed to sync with server. Check internet connection.");
+            // Fail silent: No alert on error
+            console.log("Sync failed silently:", error);
         } finally {
             setSyncing(false);
         }
