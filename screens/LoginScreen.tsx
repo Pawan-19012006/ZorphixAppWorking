@@ -73,75 +73,77 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#000000" />
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={{ flex: 1 }}
             >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    style={styles.keyboardView}
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
                 >
-                    <View style={styles.formContainer}>
-                        <View style={styles.logoContainer}>
-                            <Image
-                                source={require('../assets/zorphix-logo.png')}
-                                style={styles.logo}
-                                resizeMode="contain"
-                            />
-                        </View>
-                        <Text style={styles.title}>Event Admin Login</Text>
-                        <Text style={styles.subtitle}>Login with your assigned event email</Text>
+                    <View style={styles.contentContainer}>
+                        <View style={styles.formContainer}>
+                            <View style={styles.logoContainer}>
+                                <Image
+                                    source={require('../assets/zorphix-logo.png')}
+                                    style={styles.logo}
+                                    resizeMode="contain"
+                                />
+                            </View>
+                            <Text style={styles.title}>Event Admin Login</Text>
+                            <Text style={styles.subtitle}>Login with your assigned event email</Text>
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Email</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter admin email"
-                                placeholderTextColor="#666"
-                                value={email}
-                                onChangeText={setEmail}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                                editable={!loading}
-                            />
-                        </View>
-
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Password</Text>
-                            <View style={styles.passwordContainer}>
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Email</Text>
                                 <TextInput
-                                    style={styles.passwordInput}
-                                    placeholder="Enter password"
+                                    style={styles.input}
+                                    placeholder="Enter admin email"
                                     placeholderTextColor="#666"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPassword}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
                                     editable={!loading}
                                 />
-                                <TouchableOpacity
-                                    onPress={() => setShowPassword(!showPassword)}
-                                    style={styles.eyeIcon}
-                                    disabled={loading}
-                                >
-                                    <Text style={styles.eyeText}>{showPassword ? 'Hide' : 'Show'}</Text>
-                                </TouchableOpacity>
                             </View>
-                        </View>
 
-                        <TouchableOpacity
-                            style={[styles.button, loading && styles.buttonDisabled]}
-                            onPress={handleLogin}
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#000" />
-                            ) : (
-                                <Text style={styles.buttonText}>LOGIN</Text>
-                            )}
-                        </TouchableOpacity>
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Password</Text>
+                                <View style={styles.passwordContainer}>
+                                    <TextInput
+                                        style={styles.passwordInput}
+                                        placeholder="Enter password"
+                                        placeholderTextColor="#666"
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        secureTextEntry={!showPassword}
+                                        editable={!loading}
+                                    />
+                                    <TouchableOpacity
+                                        onPress={() => setShowPassword(!showPassword)}
+                                        style={styles.eyeIcon}
+                                        disabled={loading}
+                                    >
+                                        <Text style={styles.eyeText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <TouchableOpacity
+                                style={[styles.button, loading && styles.buttonDisabled]}
+                                onPress={handleLogin}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#000" />
+                                ) : (
+                                    <Text style={styles.buttonText}>LOGIN</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </KeyboardAvoidingView>
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 };
@@ -158,7 +160,7 @@ const styles = StyleSheet.create({
         padding: 20,
         minHeight: '100%',
     },
-    keyboardView: {
+    contentContainer: {
         width: '100%',
         maxWidth: 450,
         alignItems: 'center',

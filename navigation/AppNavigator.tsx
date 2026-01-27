@@ -48,8 +48,7 @@ const AppNavigator = () => {
                 name="Home"
                 component={HomeScreen}
                 options={{
-                    title: 'Zorphix',
-                    headerLeft: () => null,
+                    headerShown: false,
                     gestureEnabled: false
                 }}
             />

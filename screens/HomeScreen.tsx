@@ -144,8 +144,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Main Content */}
             <TouchableOpacity activeOpacity={1} onPress={closeMenu} style={styles.mainContent}>
-                {/* Current Event Badge */}
-                <View style={styles.eventBadge}>
+                <View style={styles.justName}>
                     <Text style={styles.eventLabel}>Managing Event</Text>
                     <Text style={styles.eventName}>{eventContext?.eventName || 'No Event'}</Text>
                     <Text style={styles.adminEmail}>{eventContext?.adminEmail}</Text>
@@ -163,15 +162,27 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.actionSubtitle}>Onspot</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.verifyButton]}
-                        onPress={handleVerifyEnrollment}
-                        activeOpacity={0.8}
-                    >
-                        <MaterialCommunityIcons name="qrcode-scan" size={32} color="#000" style={{ marginBottom: 10 }} />
-                        <Text style={[styles.actionTitle, styles.verifyTitle]}>VERIFY ENROLLMENT</Text>
-                        <Text style={[styles.actionSubtitle, styles.verifySubtitle]}>Enroll Now</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 15 }}>
+                        <TouchableOpacity
+                            style={[styles.actionButton, styles.verifyButton, { flex: 1, padding: 20 }]}
+                            onPress={() => navigation.navigate('QRScanner', { mode: 'INDIVIDUAL', teamSize: 1 })}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialCommunityIcons name="account" size={32} color="#000" style={{ marginBottom: 10 }} />
+                            <Text style={[styles.actionTitle, styles.verifyTitle, { fontSize: 16 }]}>INDIVIDUAL</Text>
+                            <Text style={[styles.actionSubtitle, styles.verifySubtitle, { fontSize: 12 }]}>Scan Now</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.actionButton, styles.verifyButton, { flex: 1, padding: 20 }]}
+                            onPress={() => navigation.navigate('TeamScannerSetup')}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialCommunityIcons name="account-group" size={32} color="#000" style={{ marginBottom: 10 }} />
+                            <Text style={[styles.actionTitle, styles.verifyTitle, { fontSize: 16 }]}>TEAM</Text>
+                            <Text style={[styles.actionSubtitle, styles.verifySubtitle, { fontSize: 12 }]}>Team Setup</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </TouchableOpacity>
 
@@ -333,6 +344,15 @@ const styles = StyleSheet.create({
         marginBottom: 40,
         borderWidth: 2,
         borderColor: '#FFD700',
+        alignItems: 'center',
+    },
+    justName: {
+        // backgroundColor: '#111',
+        borderRadius: 16,
+        padding: 24,
+        marginBottom: 40,
+        // borderWidth: 2,
+        // borderColor: '#FFD700',
         alignItems: 'center',
     },
     eventLabel: {

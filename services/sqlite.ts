@@ -48,6 +48,35 @@ export const initParticipantDB = () => {
         // Check current schema to see if we need migration
         const tableInfo = db.getAllSync(`PRAGMA table_info(participants);`);
 
+        // If table doesn't exist (tableInfo empty), create it
+        if (tableInfo.length === 0) {
+            db.execSync(
+                `CREATE TABLE IF NOT EXISTS participants (
+                    uid TEXT,
+                    event_id TEXT,
+                    name TEXT,
+                    phone TEXT,
+                    email TEXT,
+                    college TEXT,
+                    degree TEXT,
+                    department TEXT,
+                    year TEXT,
+                    checkin_time TEXT,
+                    source TEXT,
+                    sync_status INTEGER,
+                    payment_verified INTEGER,
+                    participated INTEGER DEFAULT 0,
+                    team_name TEXT,
+                    team_members TEXT,
+                    event_type TEXT DEFAULT 'free',
+                    PRIMARY KEY (uid, event_id)
+                );`
+            );
+            // console.log("✅ New Database Created");
+            return;
+        }
+
+        // Table exists, check if migration is needed
         // Check if 'checked_in' exists (old schema) or 'event_type' missing (new schema target)
         const hasCheckedIn = tableInfo.some((col: any) => col.name === 'checked_in');
         const hasEventType = tableInfo.some((col: any) => col.name === 'event_type');
@@ -119,30 +148,6 @@ export const initParticipantDB = () => {
                 // console.error("Migration failed, rolling back", migrationError);
                 db.execSync('ROLLBACK;');
             }
-        } else {
-            // Create table if not exists (Fresh Install)
-            db.execSync(
-                `CREATE TABLE IF NOT EXISTS participants (
-                    uid TEXT,
-                    event_id TEXT,
-                    name TEXT,
-                    phone TEXT,
-                    email TEXT,
-                    college TEXT,
-                    degree TEXT,
-                    department TEXT,
-                    year TEXT,
-                    checkin_time TEXT,
-                    source TEXT,
-                    sync_status INTEGER,
-                    payment_verified INTEGER,
-                    participated INTEGER DEFAULT 0,
-                    team_name TEXT,
-                    team_members TEXT,
-                    event_type TEXT DEFAULT 'free',
-                    PRIMARY KEY (uid, event_id)
-                );`
-            );
         }
 
     } catch (e) {
