@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllParticipants } from '../services/sqlite';
+import { getAllParticipants, getParticipantsByEvent } from '../services/sqlite';
+import { useEventContext } from '../navigation/EventContext';
 
 type Participant = {
     uid: string;
@@ -40,6 +41,7 @@ export default function DatabaseViewerScreen() {
     const [groupedUsers, setGroupedUsers] = useState<GroupedParticipant[]>([]);
     const [groupedTeams, setGroupedTeams] = useState<GroupedTeam[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const { eventContext } = useEventContext();
 
     const groupIndividualData = (data: Participant[]) => {
         const groups: { [key: string]: GroupedParticipant } = {};
@@ -87,7 +89,15 @@ export default function DatabaseViewerScreen() {
 
     const loadData = async () => {
         try {
-            const data = await getAllParticipants();
+            let data: Participant[] = [];
+            const isSuperAdmin = eventContext?.adminEmail === 'admin@zorphix.com';
+
+            if (isSuperAdmin) {
+                data = await getAllParticipants();
+            } else if (eventContext?.eventName) {
+                data = await getParticipantsByEvent(eventContext.eventName);
+            }
+
             // console.log('📊 RAW DATABASE DUMP:', JSON.stringify(data, null, 2));
             setGroupedUsers(groupIndividualData(data));
             setGroupedTeams(groupTeamData(data));

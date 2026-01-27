@@ -112,12 +112,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const handleViewDatabase = () => {
         closeMenu();
         // Restrict access to specific admin account
-        const allowedEmail = 'admin@zorphix.com';
-
-        if (eventContext?.adminEmail === allowedEmail) {
+        if (eventContext?.adminEmail) {
             navigation.navigate('DatabaseViewer');
         } else {
-            Alert.alert('Access Denied', 'This feature is restricted to the main administrator only.');
+            Alert.alert('Error', 'No event context found.');
         }
     };
 
@@ -202,7 +200,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('RecentRegistrations'); }}>
                     <MaterialCommunityIcons name="clipboard-account" size={24} color="#ffffffff" style={{ marginRight: 15 }} />
-                    <Text style={[styles.menuItemText, { color: '#ffffffff' }]}>Onspot Students</Text>
+                    <Text style={[styles.menuItemText, { color: '#ffffffff' }]}>Onspot Students (Via Manual Form)</Text>
                 </TouchableOpacity>
 
                 <View style={styles.divider} />
@@ -335,7 +333,8 @@ const styles = StyleSheet.create({
     mainContent: {
         flex: 1,
         padding: 20,
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
+        paddingTop: 60,
     },
     eventBadge: {
         backgroundColor: '#111',

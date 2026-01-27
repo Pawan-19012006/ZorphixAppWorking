@@ -13,7 +13,7 @@ export default function TeamScannerLauncher({ navigation }: any) {
 
         // teamSize is already a number and controlled by UI, so less validation needed, 
         // but nice to keep safe.
-        if (teamSize < 2 || teamSize > 10) {
+        if (teamSize < 2 || teamSize > 4) {
             Alert.alert('Invalid Team Size', 'Team size must be between 2 and 10.');
             return;
         }
@@ -26,7 +26,7 @@ export default function TeamScannerLauncher({ navigation }: any) {
     };
 
     const incrementSize = () => {
-        if (teamSize < 10) setTeamSize(prev => prev + 1);
+        if (teamSize < 4) setTeamSize(prev => prev + 1);
     };
 
     const decrementSize = () => {
