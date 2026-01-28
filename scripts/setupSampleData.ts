@@ -1,15 +1,24 @@
 /**
- * Sample Data Setup Script for Firebase
+ * SQLite to Firestore Sync Script
  * 
- * Creates sample registrations and queries in Firestore for testing.
- * Uses Firestore auto-generated document IDs.
+ * Reads participant data from SQLite database and uploads to Firestore.
  * 
  * Run this script:
- * npx ts-node --skipProject scripts/setupSampleData.ts
+ * npx ts-node --skipProject scripts/syncSQLiteToFirestore.ts
  */
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import * as XLSX from 'xlsx';
+import * as path from 'path';
+import * as fs from 'fs';
+import 'dotenv/config';
+
+// Helper to handle ESM/CJS interop for XLSX
+const getXLSX = () => {
+    // @ts-ignore
+    return XLSX.default || XLSX;
+};
 
 const firebaseConfig = {
     apiKey: "AIzaSyDu5oRJbf-gWqDZzMOK6HYmb0PBLXNqFEo",
@@ -24,275 +33,286 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Sample registrations (participants who registered via web)
-// Structure matches actual Firebase data
-const SAMPLE_REGISTRATIONS = [
-    {
-        displayName: 'Rahul Kumar',
-        email: 'rahul.kumar@gmail.com',
-        photoURL: '',
-        name: 'Rahul Kumar',
-        college: 'Chennai Institute of Technology',
-        collegeOther: '',
-        degree: 'B.Tech',
-        degreeOther: '',
-        department: 'Computer Science and Engineering',
-        departmentOther: '',
-        year: '3',
-        phone: '9876543210',
-        events: ['Pixel Reforge', 'AlgoPulse', 'FinTech 360°'],
-        payments: [
-            {
-                orderId: 'order_test_001',
-                paymentId: 'pay_test_001',
-                eventNames: ['FinTech 360°'],
-                amount: 100,
-                timestamp: Timestamp.now(),
-                verified: true
-            }
-        ],
-        registeredAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        profileCompleted: true,
-        portfolioValue: 'PENDING VALUATION'
-    },
-    {
-        displayName: 'Priya Sharma',
-        email: 'priya.sharma@gmail.com',
-        photoURL: '',
-        name: 'Priya Sharma',
-        college: 'Anna University',
-        collegeOther: '',
-        degree: 'B.E',
-        degreeOther: '',
-        department: 'Information Technology',
-        departmentOther: '',
-        year: '2',
-        phone: '9123456780',
-        events: ['PromptCraft', 'CodeCrypt', 'WealthX'],
-        payments: [
-            {
-                orderId: 'order_test_002',
-                paymentId: 'pay_test_002',
-                eventNames: ['WealthX'],
-                amount: 100,
-                timestamp: Timestamp.now(),
-                verified: true
-            }
-        ],
-        registeredAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        profileCompleted: true,
-        portfolioValue: 'PENDING VALUATION'
-    },
-    {
-        displayName: 'Arun Venkat',
-        email: 'arun.venkat@gmail.com',
-        photoURL: '',
-        name: 'Arun Venkat',
-        college: 'SRM Institute of Science and Technology',
-        collegeOther: '',
-        degree: 'B.Tech',
-        degreeOther: '',
-        department: 'Artificial Intelligence and Data Science',
-        departmentOther: '',
-        year: '4',
-        phone: '9988776655',
-        events: ['Reverse Coding', 'LinkLogic', 'Paper Presentation'],
-        payments: [
-            {
-                orderId: 'order_test_003',
-                paymentId: 'pay_test_003',
-                eventNames: ['Paper Presentation'],
-                amount: 120,
-                timestamp: Timestamp.now(),
-                verified: true
-            }
-        ],
-        registeredAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        profileCompleted: true,
-        portfolioValue: 'PENDING VALUATION'
-    },
-    {
-        displayName: 'Divya Lakshmi',
-        email: 'divya.l@gmail.com',
-        photoURL: '',
-        name: 'Divya Lakshmi',
-        college: 'VIT Chennai',
-        collegeOther: '',
-        degree: 'M.Tech',
-        degreeOther: '',
-        department: 'Cyber Security',
-        departmentOther: '',
-        year: '1',
-        phone: '8877665544',
-        events: ['Sip to Survive', 'Pitchfest'],
-        payments: [],
-        registeredAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        profileCompleted: true,
-        portfolioValue: 'PENDING VALUATION'
-    },
-    {
-        displayName: 'Karthik Rajan',
-        email: 'karthik.r@gmail.com',
-        photoURL: '',
-        name: 'Karthik Rajan',
-        college: 'PSG College of Technology',
-        collegeOther: '',
-        degree: 'B.E',
-        degreeOther: '',
-        department: 'Electronics and Communication Engineering',
-        departmentOther: '',
-        year: '3',
-        phone: '7766554433',
-        events: ['AlgoPulse', 'Pixel Reforge', 'FinTech 360°', 'WealthX'],
-        payments: [
-            {
-                orderId: 'order_test_005a',
-                paymentId: 'pay_test_005a',
-                eventNames: ['FinTech 360°', 'WealthX'],
-                amount: 200,
-                timestamp: Timestamp.now(),
-                verified: true
-            }
-        ],
-        registeredAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        profileCompleted: true,
-        portfolioValue: 'PENDING VALUATION'
-    },
-    // Unpaid registration example - for testing payment verification
-    {
-        displayName: 'Sneha Menon',
-        email: 'sneha.m@gmail.com',
-        photoURL: '',
-        name: 'Sneha Menon',
-        college: 'Chennai Institute of Technology',
-        collegeOther: '',
-        degree: 'B.Tech',
-        degreeOther: '',
-        department: 'Computer Science and Engineering',
-        departmentOther: '',
-        year: '2',
-        phone: '6655443322',
-        events: ['CodeCrypt', 'Paper Presentation'],
-        payments: [], // Not paid for Paper Presentation - will fail verification!
-        registeredAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        profileCompleted: true,
-        portfolioValue: 'PENDING VALUATION'
+
+
+// Interface for participant data
+interface Participant {
+    id?: number;
+    name: string;
+    email: string;
+    phone: string;
+    college: string;
+    department: string;
+    degree: string;
+    year: number;
+    events: string;
+    registrationDate: string;
+}
+
+/**
+ * Read participants from Excel file
+ */
+function readParticipantsFromExcel(): Participant[] {
+    // Get file from command line args or default to 'data.xlsx'
+    const fileName = process.argv[2] || 'data.xlsx';
+    const EXCEL_PATH = path.isAbsolute(fileName)
+        ? fileName
+        : path.join(process.cwd(), fileName);
+
+    console.log(`\n📖 Reading from Excel file: ${EXCEL_PATH}`);
+
+    if (!fs.existsSync(EXCEL_PATH)) {
+        console.error(`❌ Excel file not found at: ${EXCEL_PATH}`);
+        console.log(`   Usage: npx ts-node scripts/setupSampleData.ts [filename]`);
+        process.exit(1);
     }
-];
 
-// Sample queries
-const SAMPLE_QUERIES = [
-    {
-        email: 'student1@gmail.com',
-        name: 'Sample Student',
-        userId: null,
-        message: 'How can I register for multiple events at once?',
-        status: 'pending',
-        response: '',
-        createdAt: Timestamp.now(),
-        respondedAt: null,
-        respondedBy: ''
-    },
-    {
-        email: 'user.test@gmail.com',
-        name: 'Test User',
-        userId: null,
-        message: 'I paid for FinTech workshop but it shows pending. Please help.',
-        status: 'responded',
-        response: 'Your payment has been verified. You are now registered for FinTech 360°.',
-        createdAt: Timestamp.fromDate(new Date(Date.now() - 86400000)), // 1 day ago
-        respondedAt: Timestamp.now(),
-        respondedBy: 'admin'
+    const XLSX_LIB = getXLSX();
+    const workbook = XLSX_LIB.readFile(EXCEL_PATH);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+
+    // Convert to JSON
+    const rawData: any[] = XLSX_LIB.utils.sheet_to_json(sheet);
+    console.log(`✅ Read ${rawData.length} rows from Excel`);
+
+    // Map to Participant interface
+    return rawData.map(row => ({
+        name: row['Name'] || '',
+        email: row['Email'] || '',
+        phone: String(row['Phone'] || ''),
+        college: row['College'] || '',
+        department: row['Department'] || '',
+        degree: row['Degree'] || '',
+        year: Number(row['Year']) || 0,
+        events: row['Events'] || '',
+        registrationDate: row['Registration Date'] || new Date().toISOString()
+    })).filter(p => p.name && p.email);
+}
+
+
+/**
+ * Upload participants to Firestore in batches
+ * Firestore batch limit is 500 operations
+ */
+async function uploadParticipantsToFirestore(participants: Participant[]) {
+    console.log('\n🔄 Uploading participants to Firestore...\n');
+    console.log('='.repeat(60));
+
+    const BATCH_SIZE = 500;
+    let totalUploaded = 0;
+    let batchCount = 0;
+
+    try {
+        // Process in batches
+        for (let i = 0; i < participants.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const batchParticipants = participants.slice(i, i + BATCH_SIZE);
+            batchCount++;
+
+            for (const participant of batchParticipants) {
+                // Use email as document ID (sanitized)
+                const docId = participant.email.replace(/[@.]/g, '_');
+
+                // Parse events string into array
+                const eventsArray = participant.events
+                    .split(',')
+                    .map(e => e.trim())
+                    .filter(e => e.length > 0);
+
+                const participantData = {
+                    name: participant.name,
+                    email: participant.email.toLowerCase(),
+                    phone: participant.phone,
+                    college: participant.college,
+                    department: participant.department,
+                    degree: participant.degree,
+                    year: participant.year,
+                    events: eventsArray,
+                    registrationDate: participant.registrationDate,
+                    uploadedAt: new Date().toISOString(),
+                    // Store original SQLite ID if you need to reference it later
+                    sqliteId: participant.id || null
+                };
+
+                const docRef = doc(db, 'participants', docId);
+                batch.set(docRef, participantData);
+            }
+
+            await batch.commit();
+            totalUploaded += batchParticipants.length;
+
+            console.log(`✅ Batch ${batchCount}: Uploaded ${batchParticipants.length} participants (Total: ${totalUploaded}/${participants.length})`);
+        }
+
+        console.log('='.repeat(60));
+        console.log(`\n✨ Participant Upload Complete! Uploaded ${totalUploaded} participants in ${batchCount} batches`);
+
+        return totalUploaded;
+    } catch (error: any) {
+        console.error(`\n❌ Error uploading to Firestore: ${error.message}`);
+        throw error;
     }
-];
+}
 
-async function createRegistrations() {
-    // console.log('\n📝 Creating Sample Registrations...\n');
-    // console.log('   (Using Firestore auto-generated UIDs)\n');
+/**
+ * Create event-wise participant collections
+ * This creates a sub-collection under each event with registered participants
+ */
+async function createEventWiseCollections(participants: Participant[]) {
+    console.log('\n📊 Creating event-wise participant collections...\n');
+    console.log('='.repeat(60));
 
-    const createdUsers: { uid: string; name: string; events: string[] }[] = [];
+    // Group participants by event
+    const eventParticipants = new Map<string, Participant[]>();
 
-    for (const reg of SAMPLE_REGISTRATIONS) {
+    for (const participant of participants) {
+        const events = participant.events
+            .split(',')
+            .map(e => e.trim())
+            .filter(e => e.length > 0);
+
+        for (const event of events) {
+            if (!eventParticipants.has(event)) {
+                eventParticipants.set(event, []);
+            }
+            eventParticipants.get(event)!.push(participant);
+        }
+    }
+
+    let eventCount = 0;
+
+    for (const [eventName, eventParts] of eventParticipants.entries()) {
         try {
-            // Let Firestore auto-generate the document ID (uid)
-            const docRef = await addDoc(collection(db, 'registrations'), reg);
+            const batch = writeBatch(db);
 
-            // Update the document to include the uid field
-            await setDoc(docRef, { uid: docRef.id }, { merge: true });
+            // Create event document
+            const eventDocId = eventName.toLowerCase().replace(/\s+/g, '_').replace(/°/g, '');
+            const eventDocRef = doc(db, 'events', eventDocId);
 
-            // console.log(`✅ Created: ${reg.name}`);
-            // console.log(`   UID: ${docRef.id}`);
-            // console.log(`   Events: ${reg.events.join(', ')}`);
-            // console.log('');
-
-            createdUsers.push({
-                uid: docRef.id,
-                name: reg.name,
-                events: reg.events
+            batch.set(eventDocRef, {
+                name: eventName,
+                participantCount: eventParts.length,
+                lastUpdated: new Date().toISOString()
             });
+
+            // Add participants to event's sub-collection (first 500 only due to batch limit)
+            const batchLimit = Math.min(eventParts.length, 499); // Reserve 1 for event doc
+
+            for (let i = 0; i < batchLimit; i++) {
+                const participant = eventParts[i];
+                const participantDocId = participant.email.replace(/[@.]/g, '_');
+                const participantRef = doc(db, 'events', eventDocId, 'participants', participantDocId);
+
+                batch.set(participantRef, {
+                    name: participant.name,
+                    email: participant.email.toLowerCase(),
+                    phone: participant.phone,
+                    college: participant.college,
+                    registrationDate: participant.registrationDate
+                });
+            }
+
+            await batch.commit();
+
+            // If more than 499 participants, handle remaining in additional batches
+            if (eventParts.length > 499) {
+                for (let i = 499; i < eventParts.length; i += 500) {
+                    const additionalBatch = writeBatch(db);
+                    const remainingParts = eventParts.slice(i, i + 500);
+
+                    for (const participant of remainingParts) {
+                        const participantDocId = participant.email.replace(/[@.]/g, '_');
+                        const participantRef = doc(db, 'events', eventDocId, 'participants', participantDocId);
+
+                        additionalBatch.set(participantRef, {
+                            name: participant.name,
+                            email: participant.email.toLowerCase(),
+                            phone: participant.phone,
+                            college: participant.college,
+                            registrationDate: participant.registrationDate
+                        });
+                    }
+
+                    await additionalBatch.commit();
+                }
+            }
+
+            eventCount++;
+            console.log(`✅ ${eventName}: ${eventParts.length} participants`);
         } catch (error: any) {
-            // console.error(`❌ Failed: ${reg.name} - ${error.message}`);
+            console.error(`❌ Failed to create collection for ${eventName}: ${error.message}`);
         }
     }
 
-    return createdUsers;
+    console.log('='.repeat(60));
+    console.log(`\n✨ Event Collections Complete! Created ${eventCount} event collections`);
 }
 
-async function createQueries() {
-    // console.log('\n❓ Creating Sample Queries...\n');
+/**
+ * Verify uploaded data
+ */
+async function verifyData() {
+    console.log('\n🔍 Verifying Firestore data...\n');
+    console.log('='.repeat(60));
 
-    let count = 0;
-    for (const query of SAMPLE_QUERIES) {
-        try {
-            const docRef = await addDoc(collection(db, 'queries'), query);
-            // console.log(`✅ Created query from: ${query.name} (${docRef.id})`);
-            count++;
-        } catch (error: any) {
-            console.error(`❌ Failed: ${query.email} - ${error.message}`);
+    try {
+        // Verify participants
+        const participantSnapshot = await getDocs(collection(db, 'participants'));
+        console.log(`\n📌 Participants: ${participantSnapshot.size} records`);
+
+        // Verify events
+        const eventsSnapshot = await getDocs(collection(db, 'events'));
+        console.log(`📌 Events: ${eventsSnapshot.size} events`);
+
+        // Show sample participant
+        if (participantSnapshot.size > 0) {
+            const firstDoc = participantSnapshot.docs[0];
+            console.log('\n📄 Sample Participant:');
+            console.log(JSON.stringify(firstDoc.data(), null, 2));
         }
+
+        console.log('\n' + '='.repeat(60));
+    } catch (error: any) {
+        console.error('Error reading data:', error.message);
     }
-    // console.log(`\n   Created ${count}/${SAMPLE_QUERIES.length} queries`);
 }
 
+/**
+ * Main execution
+ */
 async function main() {
-    // console.log('\n🚀 Setting Up Sample Data for Zorphix...\n');
-    // console.log('='.repeat(60));
+    console.log('\n🎯 EXCEL → FIRESTORE SYNC');
+    console.log('='.repeat(60));
+    // console.log(`Database: ${DB_PATH}`); // No DB
+    console.log(`Firebase Project: ${firebaseConfig.projectId}`);
+    console.log('='.repeat(60));
 
-    const users = await createRegistrations();
-    await createQueries();
+    try {
+        // Step 1: Read from Excel
+        const participants = readParticipantsFromExcel();
 
-    // console.log('\n' + '='.repeat(60));
-    // console.log('\n✨ Sample Data Setup Complete!\n');
-    // console.log('📋 Created:');
-    // console.log(`   - ${users.length} sample registrations`);
-    // console.log(`   - ${SAMPLE_QUERIES.length} sample queries`);
+        if (participants.length === 0) {
+            console.warn('\n⚠️  No participants found in Excel. Nothing to upload.');
+            process.exit(0);
+        }
 
-    // console.log('\n🔑 Test UIDs for QR scanning:');
-    // console.log('   (Use these in your QR code scanner app)\n');
-    users.forEach(u => {
-        // console.log(`   ${u.uid}`);
-        // console.log(`   └─ ${u.name} (${u.events.join(', ')})\n`);
-    });
+        // Step 2: Upload participants to Firestore
+        await uploadParticipantsToFirestore(participants);
 
-    // console.log('💡 TIP: Save these UIDs to create QR codes for testing!');
-    // console.log('');
+        // Step 3: Create event-wise collections
+        await createEventWiseCollections(participants);
 
-    process.exit(0);
+        // Step 4: Verify everything
+        await verifyData();
+
+        console.log('\n✅ SYNC COMPLETE!\n');
+        process.exit(0);
+    } catch (error: any) {
+        console.error('\n❌ SYNC FAILED:', error.message);
+        console.error(error.stack);
+        process.exit(1);
+    }
 }
 
-main().catch(err => {
-    console.error('Script failed:', err);
-    process.exit(1);
-});
+main();

@@ -36,6 +36,9 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
         const uniqueMap = new Map<string, any>();
 
         allParticipants.forEach(p => {
+            // Filter: Only include those who have PARTICIPATED
+            if ((p.participated || 0) <= 0) return;
+
             if (!p.email && !p.phone) return;
             const key = `${p.email?.toLowerCase() || ''}_${p.phone || ''}`;
             if (!uniqueMap.has(key)) {

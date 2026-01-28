@@ -81,35 +81,77 @@ export const syncOnspotToFirebase = async () => {
         const batch = writeBatch(writeDb);
 
         for (const p of unsyncedParams) {
-            // Write to 'local_registrations' collection
-            const userRef = doc(writeDb, "local_registrations", p.uid);
+            // Handle 'IMPORT' source (Master Seed Mode)
+            if (p.source === 'IMPORT') {
+                // 1. Write to MAIN 'participants' collection
+                const docId = p.email.replace(/[@.]/g, '_').toLowerCase();
+                const mainParticipantRef = doc(writeDb, "participants", docId);
 
-            batch.set(userRef, {
-                uid: p.uid,
-                displayName: p.name,
-                name: p.name,
-                email: p.email,
-                phone: p.phone,
-                college: p.college || '',
-                degree: p.degree || '',
-                department: p.department || '',
-                year: p.year || '',
-                events: arrayUnion(p.event_id), // Ensure event is added
-                payments: p.payment_verified ? [{
-                    amount: 0, // Assuming 0 or passed, but schema doesn't store amount locally well yet for non-onspot
-                    date: new Date().toISOString(),
-                    eventNames: [p.event_id],
-                    id: `local_sync_${Date.now()}`,
-                    status: "verified",
-                    verified: true,
-                    type: "LOCAL_SYNC"
-                }] : [],
-                profileCompleted: true,
-                updatedAt: serverTimestamp(),
-                source: p.source || 'LOCAL_SYNC',
-                participated: p.participated > 0,
-                lastParticipationTime: p.participated > 0 ? (p.checkin_time || serverTimestamp()) : null
-            }, { merge: true });
+                batch.set(mainParticipantRef, {
+                    name: p.name,
+                    email: p.email.toLowerCase(),
+                    phone: p.phone,
+                    college: p.college || '',
+                    department: p.department || '',
+                    degree: p.degree || '',
+                    year: p.year || '',
+                    events: arrayUnion(p.event_id),
+                    registrationDate: new Date().toISOString(), // Fallback as SQLite simplistic schema drops it
+                    uploadedAt: serverTimestamp(),
+                    source: 'APP_IMPORT'
+                }, { merge: true });
+
+                // 2. Write to EVENT specific collection
+                const eventDocId = p.event_id.toLowerCase().replace(/\s+/g, '_').replace(/°/g, '');
+                const eventParticipantRef = doc(writeDb, "events", eventDocId, "participants", docId);
+
+                batch.set(eventParticipantRef, {
+                    name: p.name,
+                    email: p.email.toLowerCase(),
+                    phone: p.phone,
+                    college: p.college || '',
+                    registrationDate: new Date().toISOString()
+                });
+
+                // Optional: Create/Update Event Doc (basic info)
+                const eventRef = doc(writeDb, "events", eventDocId);
+                batch.set(eventRef, {
+                    name: p.event_id,
+                    lastUpdated: serverTimestamp()
+                }, { merge: true });
+
+            } else {
+                // Handle 'ONSPOT' or others (Legacy/Local Sync)
+                // Write to 'local_registrations' collection
+                const userRef = doc(writeDb, "local_registrations", p.uid);
+
+                batch.set(userRef, {
+                    uid: p.uid,
+                    displayName: p.name,
+                    name: p.name,
+                    email: p.email,
+                    phone: p.phone,
+                    college: p.college || '',
+                    degree: p.degree || '',
+                    department: p.department || '',
+                    year: p.year || '',
+                    events: arrayUnion(p.event_id), // Ensure event is added
+                    payments: p.payment_verified ? [{
+                        amount: 0,
+                        date: new Date().toISOString(),
+                        eventNames: [p.event_id],
+                        id: `local_sync_${Date.now()}`,
+                        status: "verified",
+                        verified: true,
+                        type: "LOCAL_SYNC"
+                    }] : [],
+                    profileCompleted: true,
+                    updatedAt: serverTimestamp(),
+                    source: p.source || 'LOCAL_SYNC',
+                    participated: p.participated > 0,
+                    lastParticipationTime: p.participated > 0 ? (p.checkin_time || serverTimestamp()) : null
+                }, { merge: true });
+            }
         }
 
         await batch.commit();

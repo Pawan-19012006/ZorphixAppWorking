@@ -93,14 +93,20 @@ export const importFromExcel = async () => {
                             dept,
                             year,
                             'IMPORT', // Source
-                            1, // sync_status (Marked as synced because it comes from "Server" equivalent file)
-                            0, // payment_verified (Unknown, default 0)
+                            0, // sync_status (0 = Unsynced, so it triggers Master Sync logic)
+                            1, // payment_verified (Assumed paid/verified if coming from Excel Master List)
                             0, // participated
                             '', // team_name
                             '', // team_members
                             'free' // event_type (Default)
                         );
                         totalImported++;
+                    } else {
+                        // Still insert/update even if exists to ensure we have fresh data and trigger sync?
+                        // User said "dump the DB".
+                        // For now, let's just insert if not exists. 
+                        // To force update, we'd need an updateParticipant function or just rely on 'insertOrIgnore' but here we check first.
+                        // Let's stick to "if not exists" for safety to avoid overwriting attendance data if mixed.
                     }
                 }
 

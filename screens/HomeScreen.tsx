@@ -243,19 +243,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
                 <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Import'); }}>
                     <MaterialCommunityIcons name="qrcode-scan" size={24} color="#FFF" style={{ marginRight: 15 }} />
-                    <Text style={[styles.menuItemText, { color: '#ffffffff' }]}>Sync with Peers</Text>
+                    <Text style={[styles.menuItemText, { color: '#ffffffff' }]}>Import From Peers</Text>
                 </TouchableOpacity>
                 {/* Replaced generic Import with One-Time Import */}
-                <TouchableOpacity
-                    style={[styles.menuItem, isImportDone && { opacity: 0.5 }]}
-                    onPress={handleOneTimeImport}
-                    disabled={isImportDone}
-                >
-                    <MaterialCommunityIcons name="file-excel-box" size={24} color="#FFD700" style={{ marginRight: 15 }} />
-                    <Text style={[styles.menuItemText, { color: '#FFD700' }]}>
-                        {isImportDone ? 'Imported (One-Time)' : 'One-Time Import (Excel)'}
-                    </Text>
-                </TouchableOpacity>
+                {/* One-Time Import (Admin Only) */}
+                {eventContext?.adminEmail === 'admin@zorphix.com' && (
+                    <TouchableOpacity
+                        style={[styles.menuItem, isImportDone && { opacity: 0.5 }]}
+                        onPress={handleOneTimeImport}
+                        disabled={isImportDone}
+                    >
+                        <MaterialCommunityIcons name="file-excel-box" size={24} color="#FFD700" style={{ marginRight: 15 }} />
+                        <Text style={[styles.menuItemText, { color: '#FFD700' }]}>
+                            {isImportDone ? 'Imported (One-Time)' : 'One-Time Import (Excel)'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Kept original Import for QR if needed? Or just remove? 
                      User said: "while in the sidebar add one more button named: one-time-import"
