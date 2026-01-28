@@ -1,64 +1,68 @@
 import { collection, getDocs, doc, writeBatch, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, writeDb } from "./firebase";
 import { getUnsyncedParticipants, markSynced, insertParticipant } from "./sqlite";
 
 // 1. Sync FROM Firebase (Pre-Event)
 // Fetches all registrations and inserts them into local SQLite
 // Maps the 'events' array to multiple local participant entries
 export const syncFromFirebase = async () => {
-    try {
-        // console.log("Starting sync from Firebase...");
+    // try {
+    //     // console.log("Starting sync from Firebase...");
 
-        // Fetch all registrations
-        const snapshot = await getDocs(collection(db, "registrations"));
-        let totalSynced = 0;
+    //     // // Fetch all registrations
+    //     // const snapshot = await getDocs(collection(db, "registrations"));
+    //     // let totalSynced = 0;
 
-        for (const docSnap of snapshot.docs) {
-            const data = docSnap.data();
-            const events = data.events || []; // Array of event names
-            const firestoreUid = data.uid || docSnap.id;
-            const payments = data.payments || [];
+    //     // for (const docSnap of snapshot.docs) {
+    //     //     const data = docSnap.data();
+    //     //     const events = data.events || []; // Array of event names
+    //     //     const firestoreUid = data.uid || docSnap.id;
+    //     //     const payments = data.payments || [];
 
-            // For each event the user is registered for, create a local record
-            for (const eventName of events) {
-                // Use actual Firestore UID since we now support composite PK (uid, event_id)
-                const localUid = firestoreUid;
+    //     //     // For each event the user is registered for, create a local record
+    //     //     for (const eventName of events) {
+    //     //         // Use actual Firestore UID since we now support composite PK (uid, event_id)
+    //     //         const localUid = firestoreUid;
 
-                // Check if payment is verified for this event
-                const paymentVerified = payments.some(
-                    (p: any) => p.eventNames?.includes(eventName) && p.verified
-                ) ? 1 : 0;
+    //     //         // Check if payment is verified for this event
+    //     //         const paymentVerified = payments.some(
+    //     //             (p: any) => p.eventNames?.includes(eventName) && p.verified
+    //     //         ) ? 1 : 0;
 
-                insertParticipant(
-                    localUid,
-                    eventName,
-                    data.displayName || data.name || "Unknown",
-                    data.phone || "",
-                    data.email || "",
-                    data.college || data.collegeOther || "",
-                    data.degree || data.degreeOther || "",
-                    data.department || data.departmentOther || "",
-                    data.year || "",
-                    'WEB',
-                    1,  // sync_status
-                    paymentVerified,
-                    0,   // participated
-                    '', // team_name
-                    '', // team_members
-                    'paid' // event_type (assuming paid for synced? or derive from payments? for now 'paid' or 'free' based on paymentVerified? No, that's dangerous. Let's use logic: if paymentVerified, it's paid. If not, maybe free? BUT syncFromFirebase implies registration. Safe default 'free' if unknown, but better if we knew. User didn't specify event_type source. I'll default to 'free' or update if payment verified).
-                    // Actually, if paymentVerified is 1, event_type should probably be 'paid'. If 0, it might be a free event OR unpaid paid event.
-                    // Let's assume 'free' default, app logic handles payment status separately.
-                );
-                totalSynced++;
-            }
-        }
+    //     //         insertParticipant(
+    //     //             localUid,
+    //     //             eventName,
+    //     //             data.displayName || data.name || "Unknown",
+    //     //             data.phone || "",
+    //     //             data.email || "",
+    //     //             data.college || data.collegeOther || "",
+    //     //             data.degree || data.degreeOther || "",
+    //     //             data.department || data.departmentOther || "",
+    //     //             data.year || "",
+    //     //             'WEB',
+    //     //             1,  // sync_status
+    //     //             paymentVerified,
+    //     //             0,   // participated
+    //     //             '', // team_name
+    //     //             '', // team_members
+    //     //             'paid' // event_type (assuming paid for synced? or derive from payments? for now 'paid' or 'free' based on paymentVerified? No, that's dangerous. Let's use logic: if paymentVerified, it's paid. If not, maybe free? BUT syncFromFirebase implies registration. Safe default 'free' if unknown, but better if we knew. User didn't specify event_type source. I'll default to 'free' or update if payment verified).
+    //     //             // Actually, if paymentVerified is 1, event_type should probably be 'paid'. If 0, it might be a free event OR unpaid paid event.
+    //     //             // Let's assume 'free' default, app logic handles payment status separately.
+    //     //         );
+    //     //         totalSynced++;
+    //     //     }
+    //     // }
 
-        // console.log(`Sync complete. Synced ${totalSynced} participant-event records.`);
-        return totalSynced;
-    } catch (error) {
-        console.error("Sync from Firebase failed:", error);
-        throw error;
-    }
+    //     // // console.log(`Sync complete. Synced ${totalSynced} participant-event records.`);
+    //     // return totalSynced;
+    //     console.log("Sync from Firebase is DISABLED. Using Excel Import instead.");
+    //     return 0;
+    // } catch (error) {
+    //     console.error("Sync from Firebase failed:", error);
+    //     throw error;
+    // }
+    console.log("Sync from Firebase is DISABLED.");
+    return 0;
 };
 
 // 2. Sync Local registrations (Onspot + Checks-ins) TO Firebase (Post-Event)
@@ -74,11 +78,11 @@ export const syncOnspotToFirebase = async () => {
 
         // console.log(`Found ${unsyncedParams.length} unsynced participants. Uploading...`);
 
-        const batch = writeBatch(db);
+        const batch = writeBatch(writeDb);
 
         for (const p of unsyncedParams) {
             // Write to 'local_registrations' collection
-            const userRef = doc(db, "local_registrations", p.uid);
+            const userRef = doc(writeDb, "local_registrations", p.uid);
 
             batch.set(userRef, {
                 uid: p.uid,
@@ -129,7 +133,7 @@ export const syncOnspotToFirebase = async () => {
 export const updateParticipationInFirebase = async (uid: string, eventName: string) => {
     try {
         // Update participation status in 'local_registrations'
-        const userRef = doc(db, "local_registrations", uid);
+        const userRef = doc(writeDb, "local_registrations", uid);
 
         await setDoc(userRef, {
             participated: true,
@@ -149,53 +153,56 @@ export const updateParticipationInFirebase = async (uid: string, eventName: stri
 // 4. Sync event-specific data
 // Fetches only participants for a specific event
 export const syncEventFromFirebase = async (eventName: string) => {
-    try {
-        // console.log(`Syncing participants for event: ${eventName}`);
+    // try {
+    //     // console.log(`Syncing participants for event: ${eventName}`);
 
-        const snapshot = await getDocs(collection(db, "registrations"));
-        let eventSynced = 0;
+    //     // const snapshot = await getDocs(collection(db, "registrations"));
+    //     // let eventSynced = 0;
 
-        for (const docSnap of snapshot.docs) {
-            const data = docSnap.data();
-            const events = data.events || [];
+    //     // for (const docSnap of snapshot.docs) {
+    //     //     const data = docSnap.data();
+    //     //     const events = data.events || [];
 
-            // Only process if user is registered for this event
-            if (!events.includes(eventName)) continue;
+    //     //     // Only process if user is registered for this event
+    //     //     if (!events.includes(eventName)) continue;
 
-            const firestoreUid = data.uid || docSnap.id;
-            const payments = data.payments || [];
+    //     //     const firestoreUid = data.uid || docSnap.id;
+    //     //     const payments = data.payments || [];
 
-            const localUid = firestoreUid;
+    //     //     const localUid = firestoreUid;
 
-            const paymentVerified = payments.some(
-                (p: any) => p.eventNames?.includes(eventName) && p.verified
-            ) ? 1 : 0;
+    //     //     const paymentVerified = payments.some(
+    //     //         (p: any) => p.eventNames?.includes(eventName) && p.verified
+    //     //     ) ? 1 : 0;
 
-            insertParticipant(
-                localUid,
-                eventName,
-                data.displayName || data.name || "Unknown",
-                data.phone || "",
-                data.email || "",
-                data.college || data.collegeOther || "",
-                data.degree || data.degreeOther || "",
-                data.department || data.departmentOther || "",
-                data.year || "",
-                'WEB',
-                1,
-                paymentVerified,
-                0, // participated
-                '',
-                '',
-                'free'
-            );
-            eventSynced++;
-        }
+    //     //     insertParticipant(
+    //     //         localUid,
+    //     //         eventName,
+    //     //         data.displayName || data.name || "Unknown",
+    //     //         data.phone || "",
+    //     //         data.email || "",
+    //     //         data.college || data.collegeOther || "",
+    //     //         data.degree || data.degreeOther || "",
+    //     //         data.department || data.departmentOther || "",
+    //     //         data.year || "",
+    //     //         'WEB',
+    //     //         1,
+    //     //         paymentVerified,
+    //     //         0, // participated
+    //     //         '',
+    //     //         '',
+    //     //         'free'
+    //     //     );
+    //     //     eventSynced++;
+    //     // }
 
-        // console.log(`Event sync complete. Synced ${eventSynced} participants for ${eventName}.`);
-        return eventSynced;
-    } catch (error) {
-        console.error(`Sync for event ${eventName} failed:`, error);
-        throw error;
-    }
+    //     // // console.log(`Event sync complete. Synced ${eventSynced} participants for ${eventName}.`);
+    //     // return eventSynced;
+    //     return 0;
+    // } catch (error) {
+    //     console.error(`Sync for event ${eventName} failed:`, error);
+    //     throw error;
+    // }
+    console.log(`Sync for event ${eventName} is DISABLED.`);
+    return 0;
 };

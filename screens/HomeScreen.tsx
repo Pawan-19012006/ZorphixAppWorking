@@ -5,6 +5,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
 import { syncFromFirebase, syncOnspotToFirebase } from '../services/SyncService';
+import { importFromExcel } from '../services/ExcelImportService';
 import { logoutAdmin } from '../services/firebase';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
@@ -18,6 +19,8 @@ const { width } = Dimensions.get('window');
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const [syncing, setSyncing] = React.useState(false);
+
+    const [isImportDone, setIsImportDone] = React.useState(false);
 
     // Verification Modal State
     const [showVerifyModal, setShowVerifyModal] = React.useState(false);
@@ -43,7 +46,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleSync = async () => {
-        closeMenu();
+        // closeMenu(); // Don't close menu if called programmatically? Or yes? 
+        // If called from button, we usually close menu. If called from Import, we might want to keep it open or close it. 
+        // Let's keep it simple.
+        if (isMenuOpen) closeMenu();
+
         if (syncing) return;
 
         setSyncing(true);
@@ -52,11 +59,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             // We do this first so that the server has the latest local data
             const uploadedCount = await syncOnspotToFirebase();
 
-            // 2. Read from Firebase (Pull latest data)
-            // This ensures we get any updates from other devices/admin and also confirm our pushed data
-            await syncFromFirebase();
+            // 2. Read from Firebase is DISABLED.
+            // await syncFromFirebase(); 
 
-            Alert.alert("Sync Complete", `Data updated.\nUploaded ${uploadedCount} on-spot registrations.`);
+            Alert.alert("Sync Complete", `Data updated.\nUploaded ${uploadedCount} on-spot registrations to server.`);
         } catch (error) {
             // Fail silent: No alert on error
             console.log("Sync failed silently:", error);
@@ -64,6 +70,28 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             setSyncing(false);
         }
     };
+
+    const handleOneTimeImport = async () => {
+        closeMenu();
+        if (isImportDone) return;
+
+        try {
+            const importedCount = await importFromExcel();
+
+            if (importedCount > 0) {
+                setIsImportDone(true);
+                // Automatically sync after import
+                await handleSync();
+            } else {
+                // If import cancelled or 0, don't disable? User said "once this... has written... change its state to disabled".
+                // Logic: if 0, maybe they picked wrong file. Don't disable.
+            }
+
+        } catch (e) {
+            console.error("One time import failed", e);
+            Alert.alert("Import Error", "Failed to import excel file.");
+        }
+    }
 
     const handleLogout = async () => {
         closeMenu();
@@ -213,10 +241,30 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     <Text style={styles.menuItemText}>Export Data</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Import'); }}>
-                    <MaterialCommunityIcons name="file-import" size={24} color="#FFF" style={{ marginRight: 15 }} />
-                    <Text style={styles.menuItemText}>Import Data</Text>
+                {/* Replaced generic Import with One-Time Import */}
+                <TouchableOpacity
+                    style={[styles.menuItem, isImportDone && { opacity: 0.5 }]}
+                    onPress={handleOneTimeImport}
+                    disabled={isImportDone}
+                >
+                    <MaterialCommunityIcons name="file-excel-box" size={24} color="#FFD700" style={{ marginRight: 15 }} />
+                    <Text style={[styles.menuItemText, { color: '#FFD700' }]}>
+                        {isImportDone ? 'Imported (One-Time)' : 'One-Time Import (Excel)'}
+                    </Text>
                 </TouchableOpacity>
+
+                {/* Kept original Import for QR if needed? Or just remove? 
+                     User said: "while in the sidebar add one more button named: one-time-import"
+                     It does not explicitly say remove the old Import button which was for QR.
+                     However, previous prompts replaced "import from firebase" with "excel import".
+                     The "Import Data" button (ImportScreen) was for QR import service. 
+                     I will keep "Export Data" and "Import Data" (QR) as is, but add "One-Time Import" as requested.
+                 */}
+                <TouchableOpacity style={styles.menuItem} onPress={() => { closeMenu(); navigation.navigate('Import'); }}>
+                    <MaterialCommunityIcons name="qrcode-scan" size={24} color="#888" style={{ marginRight: 15 }} />
+                    <Text style={[styles.menuItemText, { color: '#888' }]}>Scan QR Import</Text>
+                </TouchableOpacity>
+
 
                 <View style={styles.divider} />
 

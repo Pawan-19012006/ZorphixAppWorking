@@ -1,10 +1,24 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { getFirestore, initializeFirestore, collection, getDocs, query, where, doc, getDoc, updateDoc, setDoc, arrayUnion } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
 import { Platform } from "react-native";
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
+// --- Read Configuration (Source of Truth) ---
+// Uses usage-based/new project credentials (zorphix-2026)
+// Hardcoded because process.env is not resolving in the Expo/RN runtime
+const readConfig = {
+    apiKey: "AIzaSyAJuqsxv2IgrR3MQeIuLZjnZpnSRPOBnto",
+    authDomain: "zorphix-2026.firebaseapp.com",
+    projectId: "zorphix-2026",
+    storageBucket: "zorphix-2026.firebasestorage.app",
+    messagingSenderId: "144135813862",
+    appId: "1:144135813862:web:f2281bf0ac6b39c264d927",
+    measurementId: "G-V8EK8YY74T"
+};
+
+// --- Write Configuration (Legacy Logging) ---
+// Uses legacy hardcoded credentials for writing logs
+const writeConfig = {
     apiKey: "AIzaSyDu5oRJbf-gWqDZzMOK6HYmb0PBLXNqFEo",
     authDomain: "zorphix-8d91e.firebaseapp.com",
     projectId: "zorphix-8d91e",
@@ -14,59 +28,128 @@ const firebaseConfig = {
     measurementId: "G-PK6GESKCSB"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Apps
+// We check getApps() to avoid re-initialization errors in hot-reload environments
+const readApp = !getApps().length ? initializeApp(readConfig) : getApp();
+const writeApp = !getApps().find(app => app.name === "writeApp")
+    ? initializeApp(writeConfig, "writeApp")
+    : getApp("writeApp");
 
-// Analytics only works on web
+// Analytics only works on web (attached to default/read app)
 if (Platform.OS === 'web') {
     import('firebase/analytics').then(({ getAnalytics }) => {
-        getAnalytics(app);
+        getAnalytics(readApp);
     });
 }
 
-
 // Initialize Firestore with settings to improve connectivity
-export const db = initializeFirestore(app, {
+// Default 'db' is for READING (Source of Truth)
+export const db = initializeFirestore(readApp, {
     experimentalForceLongPolling: true,
     ignoreUndefinedProperties: true,
 });
 
-// Initialize Auth
-export const auth = getAuth(app);
+// 'writeDb' is for WRITING (Legacy Logging)
+export const writeDb = initializeFirestore(writeApp, {
+    experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true,
+});
 
-// Admin login function
+// Initialize Auth (attached to Read App / new project)
+export const auth = getAuth(readApp);
+
+// --- Local Authentication Setup ---
+
+// Password generator
+function generatePassword(eventName: string): string {
+    const cleaned = eventName.toLowerCase().replace(/\s+/g, '').replace(/°/g, '');
+    return `${cleaned}@zorphix@2026`;
+}
+
+// Event admin mappings (Hardcoded for Local Auth)
+const EVENT_ADMINS = [
+    // Technical Events
+    { email: 'pixelreforge@zorphix.com', eventName: 'Pixel Reforge' },
+    { email: 'promptcraft@zorphix.com', eventName: 'PromptCraft' },
+    { email: 'algopulse@zorphix.com', eventName: 'AlgoPulse' },
+    { email: 'reversecoding@zorphix.com', eventName: 'Reverse Coding' },
+    { email: 'siptosurvive@zorphix.com', eventName: 'Sip to Survive' },
+    { email: 'codecrypt@zorphix.com', eventName: 'CodeCrypt' },
+    { email: 'linklogic@zorphix.com', eventName: 'LinkLogic' },
+    { email: 'pitchfest@zorphix.com', eventName: 'Pitchfest' },
+
+    // Paper Presentation
+    { email: 'paperpresentation@zorphix.com', eventName: 'Paper Presentation' },
+
+    // Workshops
+    { email: 'fintech@zorphix.com', eventName: 'FinTech 360°' },
+    { email: 'wealthx@zorphix.com', eventName: 'WealthX' },
+
+    // Master Admin
+    { email: 'admin@zorphix.com', eventName: 'Admin' },
+];
+
+/**
+ * MOCK Firebase User object
+ * sufficient satisfy the return type Promise<User> for basic usage
+ */
+const mockUser = (email: string): User => ({
+    uid: `local_${email}`,
+    email: email,
+    emailVerified: true,
+    isAnonymous: false,
+    metadata: {},
+    providerData: [],
+    refreshToken: '',
+    tenantId: null,
+    delete: async () => { },
+    getIdToken: async () => 'mock_token',
+    getIdTokenResult: async () => ({} as any),
+    reload: async () => { },
+    toJSON: () => ({}),
+    displayName: null,
+    phoneNumber: null,
+    photoURL: null,
+    providerId: 'firebase',
+});
+
+// Admin login function (LOCAL)
 export const loginAdmin = async (email: string, password: string): Promise<User> => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const admin = EVENT_ADMINS.find(a => a.email === normalizedEmail);
+
+    if (!admin) {
+        // Throw simulated Firebase error
+        const error: any = new Error('User not found');
+        error.code = 'auth/user-not-found';
+        throw error;
+    }
+
+    const expectedPassword = generatePassword(admin.eventName);
+    if (password !== expectedPassword) {
+        // Throw simulated Firebase error
+        const error: any = new Error('Wrong password');
+        error.code = 'auth/wrong-password';
+        throw error;
+    }
+
+    return mockUser(admin.email);
 };
 
 // Logout function
 export const logoutAdmin = async (): Promise<void> => {
-    await signOut(auth);
+    // No-op for local auth
+    return;
 };
 
-// Get event name mapped to admin email
-// This reads from a 'event_admins' collection where each doc has:
-// { email: string, eventName: string }
+// Get event name mapped to admin email (LOCAL)
 export const getAdminEventMapping = async (email: string): Promise<string | null> => {
-    try {
-        // Try to find admin mapping in 'event_admins' collection
-        const adminQuery = query(
-            collection(db, "event_admins"),
-            where("email", "==", email.toLowerCase())
-        );
-        const snapshot = await getDocs(adminQuery);
-
-        if (!snapshot.empty) {
-            const adminDoc = snapshot.docs[0].data();
-            return adminDoc.eventName || null;
-        }
-
-        return null;
-    } catch (error) {
-        console.error("Failed to get admin event mapping:", error);
-        return null;
-    }
+    const normalizedEmail = email.toLowerCase().trim();
+    const admin = EVENT_ADMINS.find(a => a.email === normalizedEmail);
+    return admin ? admin.eventName : null;
 };
 
 // Check payment status for a user's event registration
@@ -129,7 +212,7 @@ export const registerUserOnSpot = async (
     amountPaid: number = 0
 ): Promise<boolean> => {
     try {
-        // Validation: Check if user exists in the main 'registrations' collection (Source of Truth)
+        // Validation: Check if user exists in the main 'registrations' collection (Read DB - Source of Truth)
         const userRef = doc(db, "registrations", userUid);
         const userDoc = await getDoc(userRef);
 
@@ -138,8 +221,8 @@ export const registerUserOnSpot = async (
             return false;
         }
 
-        // Write to: 'local_registrations'
-        const localUserRef = doc(db, "local_registrations", userUid);
+        // Write to: 'local_registrations' in the WRITE DB (Legacy Project)
+        const localUserRef = doc(writeDb, "local_registrations", userUid);
 
         // We use setDoc with merge: true to create the document if it doesn't exist
         await setDoc(localUserRef, {
@@ -155,7 +238,7 @@ export const registerUserOnSpot = async (
             })
         }, { merge: true });
 
-        console.log(`Successfully registered on-spot in local_registrations for ${userUid}`);
+        console.log(`Successfully registered on-spot in local_registrations (Write DB) for ${userUid}`);
         return true;
     } catch (error) {
         console.error("Failed to register user on-spot:", error);

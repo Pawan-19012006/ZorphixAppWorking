@@ -3,8 +3,9 @@ node_modules/
 npm-debug.log
 yarn-error.log
 .npm-local/
-.env
+*.env
 .idea/
 .vscode/
 .git/
 .expo/
+*.xlsx
