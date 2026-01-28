@@ -423,17 +423,17 @@ export const getParticipantsByEvent = async (eventId: string): Promise<any[]> =>
     }
 };
 
-// Get strictly locally added participants (Newly Added: Onspot and Imported)
+// Get strictly locally added participants (Newly Added: Onspot only)
 export const getOnSpotParticipants = async (): Promise<any[]> => {
     if (Platform.OS === 'web') {
-        const local = webParticipants.filter(p => p.source === 'ONSPOT' || p.source === 'IMPORT');
+        const local = webParticipants.filter(p => p.source === 'ONSPOT');
         return local;
     }
     if (!db) return [];
 
     try {
         return await db.getAllSync(
-            `SELECT * FROM participants WHERE source IN ('ONSPOT', 'IMPORT') ORDER BY rowid DESC;`
+            `SELECT * FROM participants WHERE source = 'ONSPOT' ORDER BY rowid DESC;`
         );
     } catch (e) {
         console.error("Get onspot failed", e);
