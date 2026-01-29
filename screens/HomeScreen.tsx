@@ -33,6 +33,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     // Detect On-Spot Registration Desk mode (empty eventName)
     const isOnSpotMode = eventContext?.eventName === '';
 
+    React.useEffect(() => {
+        console.log('🏠 [HomeScreen] Component Mounted.');
+        console.log(`ℹ️ [HomeScreen] Context: Event="${eventContext?.eventName}", Email="${eventContext?.adminEmail}"`);
+        if (isOnSpotMode) {
+            console.log('ℹ️ [HomeScreen] Mode: ON-SPOT REGISTRATION DESK');
+        } else {
+            console.log('ℹ️ [HomeScreen] Mode: EVENT MANAGER');
+        }
+    }, [eventContext]);
+
     const toggleMenu = () => {
         const toValue = isMenuOpen ? -width * 0.75 : 0;
         Animated.timing(slideAnim, {
@@ -57,10 +67,13 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         if (syncing) return;
 
         setSyncing(true);
+        console.log("🔄 [HomeScreen] Starting Manual Sync...");
         try {
             // 1. Write to Firebase (Push offline records)
             // We do this first so that the server has the latest local data
+            console.log("📤 [HomeScreen] Calling syncOnspotToFirebase()...");
             const uploadedCount = await syncOnspotToFirebase();
+            console.log(`✅ [HomeScreen] syncOnspotToFirebase() returned: ${uploadedCount} records uploaded.`);
 
             // 2. Read from Firebase is DISABLED.
             // await syncFromFirebase(); 
@@ -68,8 +81,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             Alert.alert("Sync Complete", `Data updated.\nUploaded ${uploadedCount} on-spot registrations to server.`);
         } catch (error) {
             // Fail silent: No alert on error
-            console.log("Sync failed silently:", error);
+            console.log("❌ [HomeScreen] Sync failed silently:", error);
         } finally {
+            console.log("⏹ [HomeScreen] Sync process finished.");
             setSyncing(false);
         }
     };

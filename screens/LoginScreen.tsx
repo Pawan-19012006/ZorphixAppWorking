@@ -21,8 +21,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     // Auto-navigate to Home if session exists
     useEffect(() => {
         if (!isLoading && eventContext) {
-            console.log('🔄 Auto-login: Session found, navigating to Home');
+            console.log('🔄 [LoginScreen] Auto-login: Session found, navigating to Home');
             navigation.replace('Home');
+        } else if (!isLoading && !eventContext) {
+            console.log('ℹ️ [LoginScreen] No active session found. Staying on Login screen.');
         }
     }, [isLoading, eventContext, navigation]);
 
@@ -36,7 +38,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
         try {
             // Authenticate with Firebase
+            console.log(`🔐 [LoginScreen] Attempting login for: ${email}`);
             const user = await loginAdmin(email, password);
+            console.log('✅ [LoginScreen] Firebase Auth successful.');
 
             // Get the event mapped to this admin
             const eventName = await getAdminEventMapping(email);
@@ -51,12 +55,13 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 return;
             }
 
-            // Set global event context (this also persists to AsyncStorage)
             setEventContext({
                 eventName: eventName,  // Can be '' for on-spot admin
                 adminEmail: email
             });
+            console.log(`📝 [LoginScreen] Context set. Event: "${eventName}", Email: ${email}`);
 
+            console.log('🔑 [LoginScreen] Login successful. Navigating to Home...');
             // Navigate to home
             navigation.replace('Home');
         } catch (error: any) {

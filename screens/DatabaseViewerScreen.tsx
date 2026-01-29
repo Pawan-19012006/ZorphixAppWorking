@@ -100,7 +100,9 @@ export default function DatabaseViewerScreen() {
             }
 
             // Filter to only show attended/scanned participants (participated > 0)
+            // DISABLED FOR TESTING: Show all participants
             const attendedData = data.filter(p => (p.participated || 0) > 0);
+            // const attendedData = data;
 
             // console.log('📊 Attended participants:', attendedData.length);
             setGroupedUsers(groupIndividualData(attendedData));
@@ -232,7 +234,7 @@ export default function DatabaseViewerScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.header}>Attended Participants</Text>
+            <Text style={styles.header}>All Participants (Debug Mode)</Text>
 
             {/* View Mode Toggle */}
             <View style={styles.toggleContainer}>

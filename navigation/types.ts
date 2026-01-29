@@ -568,20 +568,20 @@ export const COLLEGES = [
 // These must match the 'event_admins' collection in Firebase
 export const EVENT_ADMIN_EMAILS: { email: string; eventName: string }[] = [
     // Technical Events
-    { email: 'pixelreforge@zorphix.com', eventName: 'Pixel Reforge' },
+    { email: 'pixelreforge@zorphix.com', eventName: 'PixelReforge' },
     { email: 'promptcraft@zorphix.com', eventName: 'PromptCraft' },
     { email: 'algopulse@zorphix.com', eventName: 'AlgoPulse' },
-    { email: 'reversecoding@zorphix.com', eventName: 'Reverse Coding' },
-    { email: 'siptosurvive@zorphix.com', eventName: 'Sip to Survive' },
+    { email: 'codeback@zorphix.com', eventName: 'codeback' },
+    { email: 'siptosurvive@zorphix.com', eventName: 'SiptoSurvive' },
     { email: 'codecrypt@zorphix.com', eventName: 'CodeCrypt' },
     { email: 'linklogic@zorphix.com', eventName: 'LinkLogic' },
     { email: 'pitchfest@zorphix.com', eventName: 'Pitchfest' },
 
     // Paper Presentation
-    { email: 'paperpresentation@zorphix.com', eventName: 'Paper Presentation' },
+    { email: 'thesisprecised@zorphix.com', eventName: 'thesisprecised' },
 
     // Workshops
-    { email: 'fintech@zorphix.com', eventName: 'FinTech 360°' },
+    { email: 'fintech@zorphix.com', eventName: 'FinTech' },
     { email: 'wealthx@zorphix.com', eventName: 'WealthX' },
 
     // On-Spot Registration Desk
@@ -596,15 +596,15 @@ export const ALL_EVENTS = [
     'Pixel Reforge',
     'PromptCraft',
     'AlgoPulse',
-    'Reverse Coding',
+    'Code Back',
     'Sip to Survive',
     'CodeCrypt',
     'LinkLogic',
     'Pitchfest',
-    'Paper Presentation',
+    'Thesis Precised',
     'FinTech 360°',
     'WealthX'
 ];
 
 // Paid events list
-export const PAID_EVENTS = ['FinTech 360°', 'WealthX', 'Paper Presentation'];
+export const PAID_EVENTS = ['FinTech', 'WealthX', 'Thesis Precised'];

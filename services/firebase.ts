@@ -53,39 +53,41 @@ export const auth = getAuth(writeApp);
 // --- Local Authentication Setup ---
 
 // Password generator
-function generatePassword(eventName: string): string {
+// Format: {eventName}{secret}@zorphix@2026
+function generatePassword(eventName: string, secret: string = ''): string {
     // Special case for on-spot admin (empty eventName)
-    if (eventName === '') return 'onspot@zorphix@2026';
+    if (eventName === '') return `onspot${secret}@zorphix@2026`;
     // Special case for master admin
-    if (eventName === 'Admin') return 'ad##zp##2026';
+    if (eventName === 'ALL') return `admin${secret}@zorphix@2026`;
     const cleaned = eventName.toLowerCase().replace(/\s+/g, '').replace(/°/g, '');
-    return `${cleaned}@zorphix@2026`;
+    return `${cleaned}${secret}@zorphix@2026`;
 }
 
 // Event admin mappings (Hardcoded for Local Auth)
+// Each admin has a 5-char alphanumeric secret for added security
 const EVENT_ADMINS = [
     // Technical Events
-    { email: 'pixelreforge@zorphix.com', eventName: 'Pixel Reforge' },
-    { email: 'promptcraft@zorphix.com', eventName: 'PromptCraft' },
-    { email: 'algopulse@zorphix.com', eventName: 'AlgoPulse' },
-    { email: 'reversecoding@zorphix.com', eventName: 'Reverse Coding' },
-    { email: 'siptosurvive@zorphix.com', eventName: 'Sip to Survive' },
-    { email: 'codecrypt@zorphix.com', eventName: 'CodeCrypt' },
-    { email: 'linklogic@zorphix.com', eventName: 'LinkLogic' },
-    { email: 'pitchfest@zorphix.com', eventName: 'Pitchfest' },
+    { email: 'pixelreforge@zorphix.com', eventName: 'PixelReforge', secret: 'Px7Rf' },
+    { email: 'promptcraft@zorphix.com', eventName: 'PromptCraft', secret: 'Pc9Kt' },
+    { email: 'algopulse@zorphix.com', eventName: 'AlgoPulse', secret: 'Ap3Zs' },
+    { email: 'codeback@zorphix.com', eventName: 'codeback', secret: 'Cb8Xv' },
+    { email: 'siptosurvive@zorphix.com', eventName: 'SiptoSurvive', secret: 'Ss4Qm' },
+    { email: 'codecrypt@zorphix.com', eventName: 'CodeCrypt', secret: 'Cc2Yn' },
+    { email: 'linklogic@zorphix.com', eventName: 'LinkLogic', secret: 'Ll6Wt' },
+    { email: 'pitchfest@zorphix.com', eventName: 'Pitchfest', secret: 'Pf1Jb' },
 
     // Paper Presentation
-    { email: 'paperpresentation@zorphix.com', eventName: 'Paper Presentation' },
+    { email: 'thesisprecised@zorphix.com', eventName: 'thesisprecised', secret: 'Tp5Hc' },
 
     // Workshops
-    { email: 'fintech@zorphix.com', eventName: 'FinTech 360°' },
-    { email: 'wealthx@zorphix.com', eventName: 'WealthX' },
+    { email: 'fintech@zorphix.com', eventName: 'FinTech', secret: 'Ft7Ld' },
+    { email: 'wealthx@zorphix.com', eventName: 'WealthX', secret: 'Wx9Ng' },
 
-    // On-Spot Registration Desk (no specific event)
-    { email: 'onspot@zorphix.com', eventName: '' },
+    // On-Spot Registration Desk
+    { email: 'onspot@zorphix.com', eventName: '', secret: 'Os3Fk' },
 
-    // Master Admin
-    { email: 'admin@zorphix.com', eventName: 'Admin' },
+    // Master Admin (has access to all events)
+    { email: 'admin@zorphix.com', eventName: 'ALL', secret: 'Ad8Rm' },
 ];
 
 /**
@@ -127,7 +129,7 @@ export const loginAdmin = async (email: string, password: string): Promise<User>
         throw error;
     }
 
-    const expectedPassword = generatePassword(admin.eventName);
+    const expectedPassword = generatePassword(admin.eventName, admin.secret);
     if (password !== expectedPassword) {
         // Throw simulated Firebase error
         const error: any = new Error('Wrong password');
