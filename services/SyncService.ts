@@ -89,9 +89,9 @@ export const syncOnspotToFirebase = async () => {
         for (const p of unsyncedParams) {
             // Handle 'IMPORT' source (Master Seed Mode)
             if (p.source === 'IMPORT') {
-                // 1. Write to MAIN 'participants' collection
+                // 1. Write to MAIN 'registrations' collection (the actual collection)
                 const docId = p.email.replace(/[@.]/g, '_').toLowerCase();
-                const mainParticipantRef = doc(writeDb, "participants", docId);
+                const mainParticipantRef = doc(writeDb, "registrations", docId);
 
                 batch.set(mainParticipantRef, {
                     name: p.name,

@@ -43,9 +43,9 @@ export const syncParticipantsFromFirebase = async (
 
         updateStatus('Connected ✓', 'Internet connection available');
 
-        // Step 2: Fetch from Firebase
+        // Step 2: Fetch from Firebase (read from 'registrations' collection)
         updateStatus('Fetching data...', 'Downloading participant records from server');
-        const snapshot = await getDocs(collection(db, 'participants'));
+        const snapshot = await getDocs(collection(db, 'registrations'));
         const totalParticipants = snapshot.docs.length;
 
         updateStatus('Data received ✓', `Found ${totalParticipants} participants`);
