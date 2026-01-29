@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image, Alert, StatusBar, ScrollView, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
@@ -16,7 +16,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    const { setEventContext } = useEventContext();
+    const { eventContext, setEventContext, isLoading } = useEventContext();
+
+    // Auto-navigate to Home if session exists
+    useEffect(() => {
+        if (!isLoading && eventContext) {
+            console.log('🔄 Auto-login: Session found, navigating to Home');
+            navigation.replace('Home');
+        }
+    }, [isLoading, eventContext, navigation]);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -33,7 +41,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             // Get the event mapped to this admin
             const eventName = await getAdminEventMapping(email);
 
-            if (!eventName) {
+            // Check if admin is valid (null means not found, '' means on-spot admin)
+            if (eventName === null) {
                 Alert.alert(
                     'Access Denied',
                     'Your account is not mapped to any event. Please contact the administrator.'
@@ -42,9 +51,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 return;
             }
 
-            // Set global event context
+            // Set global event context (this also persists to AsyncStorage)
             setEventContext({
-                eventName: eventName,
+                eventName: eventName,  // Can be '' for on-spot admin
                 adminEmail: email
             });
 
