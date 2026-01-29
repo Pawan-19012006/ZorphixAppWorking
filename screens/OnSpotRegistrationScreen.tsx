@@ -35,10 +35,10 @@ const OnSpotRegistrationScreen: React.FC<Props> = ({ navigation }) => {
     const [registeredData, setRegisteredData] = useState<any>(null);
 
     const validateForm = (): boolean => {
-        if (!selectedEvent) {
-            Alert.alert('Error', 'Please select an event');
-            return false;
-        }
+        // if (!selectedEvent) {
+        //     Alert.alert('Error', 'Please select an event');
+        //     return false;
+        // }
         if (!name.trim()) {
             Alert.alert('Error', 'Please enter full name');
             return false;
@@ -237,8 +237,7 @@ const OnSpotRegistrationScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.title}>On-Spot Registration</Text>
                 <Text style={styles.subtitle}>Register a new participant at the desk</Text>
 
-                {/* Event Selection */}
-                <View style={styles.section}>
+                {/* <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Event Selection</Text>
 
                     <SearchableDropdown
@@ -254,7 +253,7 @@ const OnSpotRegistrationScreen: React.FC<Props> = ({ navigation }) => {
                             <Text style={styles.paidEventText}>💰 This is a PAID event - Ensure payment is collected!</Text>
                         </View>
                     )}
-                </View>
+                </View> */}
 
                 {/* Personal Information */}
                 <View style={styles.section}>
