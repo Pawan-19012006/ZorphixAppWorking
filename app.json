@@ -4,19 +4,19 @@
     "slug": "zorphix-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/zorphix-logo.png",
+    "icon": "./assets/applogo.png",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/zorphix-logo.png",
+      "icon": "./assets/applogo.png",
       "bundleIdentifier": "com.karthikvvvvk.zorphixapp"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/zorphix-logo.png",
+        "foregroundImage": "./assets/applogo.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.karthikvvvvk.zorphixapp"

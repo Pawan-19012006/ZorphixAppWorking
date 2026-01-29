@@ -94,7 +94,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                         <View style={styles.formContainer}>
                             <View style={styles.logoContainer}>
                                 <Image
-                                    source={require('../assets/zorphix-logo.png')}
+                                    source={require('../assets/applogo.png')}
                                     style={styles.logo}
                                     resizeMode="contain"
                                 />
