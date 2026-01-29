@@ -42,6 +42,7 @@ import { registerRootComponent } from 'expo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, Text } from 'react-native';
 import { initParticipantDB } from './services/sqlite';
+import { runInitialDataImport } from './services/InitialDataImport';
 
 // Error Boundary
 interface ErrorBoundaryProps {
@@ -83,7 +84,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 function App() {
     React.useEffect(() => {
+        // Initialize database first
         initParticipantDB();
+        // Run one-time Firebase import (only on first install)
+        runInitialDataImport();
     }, []);
 
     return (

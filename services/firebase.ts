@@ -6,15 +6,7 @@ import { Platform } from "react-native";
 // --- Read Configuration (Source of Truth) ---
 // Uses usage-based/new project credentials (zorphix-2026)
 // Hardcoded because process.env is not resolving in the Expo/RN runtime
-const readConfig = {
-    apiKey: "AIzaSyAJuqsxv2IgrR3MQeIuLZjnZpnSRPOBnto",
-    authDomain: "zorphix-2026.firebaseapp.com",
-    projectId: "zorphix-2026",
-    storageBucket: "zorphix-2026.firebasestorage.app",
-    messagingSenderId: "144135813862",
-    appId: "1:144135813862:web:f2281bf0ac6b39c264d927",
-    measurementId: "G-V8EK8YY74T"
-};
+
 
 // --- Write Configuration (Legacy Logging) ---
 // Uses legacy hardcoded credentials for writing logs
@@ -30,7 +22,7 @@ const writeConfig = {
 
 // Initialize Apps
 // We check getApps() to avoid re-initialization errors in hot-reload environments
-const readApp = !getApps().length ? initializeApp(readConfig) : getApp();
+// const writeApp = !getApps().length ? initializeApp(readConfig) : getApp();
 const writeApp = !getApps().find(app => app.name === "writeApp")
     ? initializeApp(writeConfig, "writeApp")
     : getApp("writeApp");
@@ -38,13 +30,13 @@ const writeApp = !getApps().find(app => app.name === "writeApp")
 // Analytics only works on web (attached to default/read app)
 if (Platform.OS === 'web') {
     import('firebase/analytics').then(({ getAnalytics }) => {
-        getAnalytics(readApp);
+        getAnalytics(writeApp);
     });
 }
 
 // Initialize Firestore with settings to improve connectivity
 // Default 'db' is for READING (Source of Truth)
-export const db = initializeFirestore(readApp, {
+export const db = initializeFirestore(writeApp, {
     experimentalForceLongPolling: true,
     ignoreUndefinedProperties: true,
 });
@@ -56,7 +48,7 @@ export const writeDb = initializeFirestore(writeApp, {
 });
 
 // Initialize Auth (attached to Read App / new project)
-export const auth = getAuth(readApp);
+export const auth = getAuth(writeApp);
 
 // --- Local Authentication Setup ---
 
