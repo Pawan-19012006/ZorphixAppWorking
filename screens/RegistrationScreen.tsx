@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
-    KeyboardAvoidingView, Platform, ScrollView, Modal, FlatList
+    KeyboardAvoidingView, Platform, ScrollView, Modal
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList, COLLEGES, DEGREES, DEPARTMENTS, YEARS } from '../navigation/types';
+import SearchableDropdown from '../components/SearchableDropdown';
 import { useEventContext } from '../navigation/EventContext';
 import { insertParticipant } from '../services/sqlite';
 import { registerUserOnSpot } from '../services/firebase'; // Ensure this is exported and available
@@ -21,61 +22,7 @@ type Props = {
     route: RegistrationScreenRouteProp;
 };
 
-interface DropdownProps {
-    label: string;
-    value: string;
-    options: string[];
-    onSelect: (value: string) => void;
-    placeholder: string;
-}
 
-const Dropdown: React.FC<DropdownProps> = ({ label, value, options, onSelect, placeholder }) => {
-    const [visible, setVisible] = useState(false);
-
-    return (
-        <View style={styles.formGroup}>
-            <Text style={styles.label}>{label}</Text>
-            <TouchableOpacity
-                style={styles.dropdown}
-                onPress={() => setVisible(true)}
-            >
-                <Text style={[styles.dropdownText, !value && styles.placeholder]}>
-                    {value || placeholder}
-                </Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-            </TouchableOpacity>
-
-            <Modal visible={visible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setVisible(false)}
-                >
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>{label}</Text>
-                        <FlatList
-                            data={options}
-                            keyExtractor={(item) => item}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={[styles.modalItem, value === item && styles.modalItemSelected]}
-                                    onPress={() => {
-                                        onSelect(item);
-                                        setVisible(false);
-                                    }}
-                                >
-                                    <Text style={[styles.modalItemText, value === item && styles.modalItemTextSelected]}>
-                                        {item}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
-                        />
-                    </View>
-                </TouchableOpacity>
-            </Modal>
-        </View>
-    );
-};
 
 const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     const { eventContext } = useEventContext();
@@ -429,7 +376,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Academic Information</Text>
 
-                    <Dropdown
+                    <SearchableDropdown
                         label="College *"
                         value={college}
                         options={COLLEGES}
@@ -450,7 +397,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         </View>
                     )}
 
-                    <Dropdown
+                    <SearchableDropdown
                         label="Degree *"
                         value={degree}
                         options={DEGREES}
@@ -471,7 +418,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         </View>
                     )}
 
-                    <Dropdown
+                    <SearchableDropdown
                         label="Department *"
                         value={department}
                         options={DEPARTMENTS}
@@ -492,7 +439,7 @@ const RegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
                         </View>
                     )}
 
-                    <Dropdown
+                    <SearchableDropdown
                         label="Year of Study *"
                         value={year}
                         options={YEARS}
@@ -643,67 +590,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#111',
         color: 'white',
     },
-    dropdown: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#333',
-        borderRadius: 8,
-        padding: 15,
-        backgroundColor: '#111',
-    },
-    dropdownText: {
-        fontSize: 16,
-        color: 'white',
-        flex: 1,
-    },
-    placeholder: {
-        color: '#666',
-    },
-    dropdownArrow: {
-        color: '#FFD700',
-        fontSize: 12,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    modalContent: {
-        backgroundColor: '#111',
-        borderRadius: 16,
-        width: '100%',
-        maxHeight: '70%',
-        borderWidth: 1,
-        borderColor: '#333',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#FFD700',
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    modalItem: {
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#222',
-    },
-    modalItemSelected: {
-        backgroundColor: '#1a1a1a',
-    },
-    modalItemText: {
-        fontSize: 16,
-        color: '#FFF',
-    },
-    modalItemTextSelected: {
-        color: '#FFD700',
-        fontWeight: 'bold',
-    },
+
     button: {
         backgroundColor: '#FFD700',
         paddingVertical: 18,
@@ -764,22 +651,22 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20
     },
-    // modalContent: {
-    //     backgroundColor: '#1E1E1E',
-    //     borderRadius: 20,
-    //     padding: 24,
-    //     alignItems: 'center',
-    //     width: '100%',
-    //     maxWidth: 340,
-    //     borderWidth: 1,
-    //     borderColor: '#333'
-    // },
-    // modalTitle: {
-    //     color: '#FFD700',
-    //     fontSize: 24,
-    //     fontWeight: 'bold',
-    //     marginBottom: 8
-    // },
+    modalContent: {
+        backgroundColor: '#1E1E1E',
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+        width: '100%',
+        maxWidth: 340,
+        borderWidth: 1,
+        borderColor: '#333'
+    },
+    modalTitle: {
+        color: '#FFD700',
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 8
+    },
     modalSubtitle: {
         color: '#AAA',
         fontSize: 16,
