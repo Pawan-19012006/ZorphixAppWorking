@@ -16,6 +16,7 @@ type Participant = {
     sync_status: number;
     team_name?: string;
     team_members?: string;
+    participated?: number;  // Track attendance count
 };
 
 type GroupedParticipant = {
@@ -98,9 +99,12 @@ export default function DatabaseViewerScreen() {
                 data = await getParticipantsByEvent(eventContext.eventName);
             }
 
-            // console.log('📊 RAW DATABASE DUMP:', JSON.stringify(data, null, 2));
-            setGroupedUsers(groupIndividualData(data));
-            setGroupedTeams(groupTeamData(data));
+            // Filter to only show attended/scanned participants (participated > 0)
+            const attendedData = data.filter(p => (p.participated || 0) > 0);
+
+            // console.log('📊 Attended participants:', attendedData.length);
+            setGroupedUsers(groupIndividualData(attendedData));
+            setGroupedTeams(groupTeamData(attendedData));
         } catch (error) {
             console.error(error);
         }
@@ -228,7 +232,7 @@ export default function DatabaseViewerScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.header}>Database Viewer</Text>
+            <Text style={styles.header}>Attended Participants</Text>
 
             {/* View Mode Toggle */}
             <View style={styles.toggleContainer}>
