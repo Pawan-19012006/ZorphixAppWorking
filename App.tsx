@@ -33,7 +33,7 @@ if (Platform.OS === 'web') {
     };
 }
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './navigation/AppNavigator';
 import { EventProvider } from './navigation/EventContext';
@@ -42,8 +42,6 @@ import { registerRootComponent } from 'expo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, Text } from 'react-native';
 import { initParticipantDB } from './services/sqlite';
-import { syncParticipantsFromFirebase } from './services/InitialDataImport';
-import SyncOverlay from './components/SyncOverlay';
 
 // Error Boundary
 interface ErrorBoundaryProps {
@@ -84,33 +82,15 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 function App() {
-    const [syncVisible, setSyncVisible] = useState(false);
-    const [syncStatus, setSyncStatus] = useState('Initializing...');
-    const [syncSubStatus, setSyncSubStatus] = useState<string | undefined>(undefined);
-
     useEffect(() => {
-        const runSync = async () => {
-            console.log('🚀 [App.tsx] App mounted. Starting initialization...');
+        console.log('🚀 [App.tsx] App mounted. Starting initialization...');
 
-            // Initialize database first
-            console.log('🛠 [App.tsx] Calling initParticipantDB()...');
-            initParticipantDB();
+        // Initialize database only - sync handled by SyncManager after login
+        console.log('🛠 [App.tsx] Calling initParticipantDB()...');
+        initParticipantDB();
 
-            // Show sync overlay and run sync with status updates
-            setSyncVisible(true);
-
-            await syncParticipantsFromFirebase((status, subStatus) => {
-                setSyncStatus(status);
-                setSyncSubStatus(subStatus);
-            });
-
-            // Hide overlay after a brief delay to show completion
-            setTimeout(() => {
-                setSyncVisible(false);
-            }, 1200);
-        };
-
-        runSync();
+        // Note: Firebase sync is now handled by SyncManager in HomeScreen
+        // This avoids double sync and ensures sync only happens after login
     }, []);
 
     return (
@@ -121,11 +101,6 @@ function App() {
                         <AppNavigator />
                         <StatusBar style="auto" />
                     </NavigationContainer>
-                    <SyncOverlay
-                        visible={syncVisible}
-                        status={syncStatus}
-                        subStatus={syncSubStatus}
-                    />
                 </GestureHandlerRootView>
             </EventProvider>
         </ErrorBoundary>

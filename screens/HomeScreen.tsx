@@ -7,6 +7,8 @@ import { useEventContext } from '../navigation/EventContext';
 import { syncFromFirebase, syncOnspotToFirebase } from '../services/SyncService';
 import { importFromExcel } from '../services/ExcelImportService';
 import { logoutAdmin } from '../services/firebase';
+import { startNetworkWatcher, stopNetworkWatcher } from '../services/SyncManager';
+import SyncOverlay from '../components/SyncOverlay';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -22,6 +24,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     const [isImportDone, setIsImportDone] = React.useState(false);
 
+    // Background sync overlay state
+    const [bgSyncVisible, setBgSyncVisible] = React.useState(false);
+    const [bgSyncStatus, setBgSyncStatus] = React.useState('');
+    const [bgSyncSubStatus, setBgSyncSubStatus] = React.useState<string | undefined>(undefined);
+
     // Verification Modal State
     const [showVerifyModal, setShowVerifyModal] = React.useState(false);
     const [verifyMode, setVerifyMode] = React.useState<'INDIVIDUAL' | 'TEAM'>('INDIVIDUAL');
@@ -33,6 +40,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     // Detect On-Spot Registration Desk mode (empty eventName)
     const isOnSpotMode = eventContext?.eventName === '';
 
+    // Start network watcher for background sync on mount
     React.useEffect(() => {
         console.log('🏠 [HomeScreen] Component Mounted.');
         console.log(`ℹ️ [HomeScreen] Context: Event="${eventContext?.eventName}", Email="${eventContext?.adminEmail}"`);
@@ -41,6 +49,23 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         } else {
             console.log('ℹ️ [HomeScreen] Mode: EVENT MANAGER');
         }
+
+        // Start background network watcher (persists until sync completes)
+        // It won't start again if already running
+        console.log('👀 [HomeScreen] Starting background network watcher...');
+        startNetworkWatcher((status, subStatus) => {
+            setBgSyncVisible(true);
+            setBgSyncStatus(status);
+            setBgSyncSubStatus(subStatus);
+
+            // Hide overlay after sync completes
+            if (status.includes('complete') || status.includes('failed')) {
+                setTimeout(() => setBgSyncVisible(false), 1500);
+            }
+        });
+
+        // NO cleanup on unmount - let the watcher run until sync completes
+        // This ensures retries continue even if user navigates away
     }, [eventContext]);
 
     const toggleMenu = () => {
@@ -379,6 +404,13 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             >
                 <MaterialCommunityIcons name="magnify" size={30} color="#000" />
             </TouchableOpacity>
+
+            {/* Background Sync Overlay */}
+            <SyncOverlay
+                visible={bgSyncVisible}
+                status={bgSyncStatus}
+                subStatus={bgSyncSubStatus}
+            />
         </View>
     );
 };
