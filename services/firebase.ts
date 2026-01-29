@@ -54,6 +54,8 @@ export const auth = getAuth(writeApp);
 
 // Password generator
 function generatePassword(eventName: string): string {
+    // Special case for on-spot admin (empty eventName)
+    if (eventName === '') return 'onspot@zorphix@2026';
     const cleaned = eventName.toLowerCase().replace(/\s+/g, '').replace(/°/g, '');
     return `${cleaned}@zorphix@2026`;
 }
@@ -76,6 +78,9 @@ const EVENT_ADMINS = [
     // Workshops
     { email: 'fintech@zorphix.com', eventName: 'FinTech 360°' },
     { email: 'wealthx@zorphix.com', eventName: 'WealthX' },
+
+    // On-Spot Registration Desk (no specific event)
+    { email: 'onspot@zorphix.com', eventName: '' },
 
     // Master Admin
     { email: 'admin@zorphix.com', eventName: 'Admin' },

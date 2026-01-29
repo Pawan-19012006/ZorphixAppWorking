@@ -27,6 +27,7 @@ export type RootStackParamList = {
     Import: undefined;
     Search: undefined;
     TeamScannerSetup: undefined;
+    OnSpotRegistration: undefined;
 };
 
 // Participant data structure matching Firebase schema
@@ -109,6 +110,9 @@ export const EVENT_ADMIN_EMAILS: { email: string; eventName: string }[] = [
     // Workshops
     { email: 'fintech@zorphix.com', eventName: 'FinTech 360°' },
     { email: 'wealthx@zorphix.com', eventName: 'WealthX' },
+
+    // On-Spot Registration Desk
+    { email: 'onspot@zorphix.com', eventName: '' },
 
     // Master Admin (has access to all events)
     { email: 'admin@zorphix.com', eventName: 'ALL' },

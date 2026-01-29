@@ -11,6 +11,7 @@ import ExportScreen from '../screens/ExportScreen';
 import ImportScreen from '../screens/ImportScreen';
 import SearchScreen from '../screens/SearchScreen';
 import TeamScannerLauncher from '../screens/TeamScannerLauncher';
+import OnSpotRegistrationScreen from '../screens/OnSpotRegistrationScreen';
 import { RootStackParamList } from './types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -92,6 +93,11 @@ const AppNavigator = () => {
                 name="TeamScannerSetup"
                 component={TeamScannerLauncher}
                 options={{ title: 'Team Setup' }}
+            />
+            <Stack.Screen
+                name="OnSpotRegistration"
+                component={OnSpotRegistrationScreen}
+                options={{ title: 'On-Spot Registration' }}
             />
         </Stack.Navigator >
     );

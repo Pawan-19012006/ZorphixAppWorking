@@ -30,6 +30,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const slideAnim = React.useRef(new Animated.Value(-width * 0.75)).current;
     const { eventContext, setEventContext } = useEventContext();
 
+    // Detect On-Spot Registration Desk mode (empty eventName)
+    const isOnSpotMode = eventContext?.eventName === '';
+
     const toggleMenu = () => {
         const toValue = isMenuOpen ? -width * 0.75 : 0;
         Animated.timing(slideAnim, {
@@ -119,7 +122,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleNewRegister = () => {
         closeMenu();
-        navigation.navigate('Registration');
+        if (isOnSpotMode) {
+            navigation.navigate('OnSpotRegistration');
+        } else {
+            navigation.navigate('Registration');
+        }
     };
 
     const handleVerifyEnrollment = () => {
@@ -174,44 +181,52 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             {/* Main Content */}
             <TouchableOpacity activeOpacity={1} onPress={closeMenu} style={styles.mainContent}>
                 <View style={styles.justName}>
-                    <Text style={styles.eventLabel}>Managing Event</Text>
-                    <Text style={styles.eventName}>{eventContext?.eventName || 'No Event'}</Text>
+                    <Text style={styles.eventLabel}>{isOnSpotMode ? 'Registration Desk' : 'Managing Event'}</Text>
+                    <Text style={[styles.eventName, isOnSpotMode && { color: '#4CAF50' }]}>
+                        {isOnSpotMode ? '📋 On-Spot Registration' : (eventContext?.eventName || 'No Event')}
+                    </Text>
                     <Text style={styles.adminEmail}>{eventContext?.adminEmail}</Text>
                 </View>
                 {/* Action Buttons */}
                 <View style={styles.buttonContainer}>
                     <TouchableOpacity
-                        style={styles.actionButton}
+                        style={[styles.actionButton, isOnSpotMode && { borderColor: '#4CAF50' }]}
                         onPress={handleNewRegister}
                         activeOpacity={0.8}
                     >
-
-                        <MaterialCommunityIcons name="account-plus" size={32} color="#ffffffff" style={{ marginBottom: 10 }} />
-                        <Text style={styles.actionTitle}>CREATE USER</Text>
-                        <Text style={styles.actionSubtitle}>Onspot</Text>
+                        <MaterialCommunityIcons name="account-plus" size={32} color={isOnSpotMode ? '#4CAF50' : '#ffffffff'} style={{ marginBottom: 10 }} />
+                        <Text style={[styles.actionTitle, isOnSpotMode && { color: '#4CAF50' }]}>
+                            {isOnSpotMode ? 'REGISTER PARTICIPANT' : 'CREATE USER'}
+                        </Text>
+                        <Text style={styles.actionSubtitle}>
+                            {isOnSpotMode ? 'Generate QR Code' : 'Onspot'}
+                        </Text>
                     </TouchableOpacity>
 
-                    <View style={{ flexDirection: 'row', gap: 15 }}>
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.verifyButton, { flex: 1, padding: 20 }]}
-                            onPress={() => navigation.navigate('QRScanner', { mode: 'INDIVIDUAL', teamSize: 1 })}
-                            activeOpacity={0.8}
-                        >
-                            <MaterialCommunityIcons name="account" size={32} color="#000" style={{ marginBottom: 10 }} />
-                            <Text style={[styles.actionTitle, styles.verifyTitle, { fontSize: 16, alignContent: 'center' }]}>ENROLL INDIVIDUAL</Text>
-                            <Text style={[styles.actionSubtitle, styles.verifySubtitle, { fontSize: 12 }]}>Scan Now</Text>
-                        </TouchableOpacity>
+                    {/* Only show event-specific buttons if NOT in on-spot mode */}
+                    {!isOnSpotMode && (
+                        <View style={{ flexDirection: 'row', gap: 15 }}>
+                            <TouchableOpacity
+                                style={[styles.actionButton, styles.verifyButton, { flex: 1, padding: 20 }]}
+                                onPress={() => navigation.navigate('QRScanner', { mode: 'INDIVIDUAL', teamSize: 1 })}
+                                activeOpacity={0.8}
+                            >
+                                <MaterialCommunityIcons name="account" size={32} color="#000" style={{ marginBottom: 10 }} />
+                                <Text style={[styles.actionTitle, styles.verifyTitle, { fontSize: 16, alignContent: 'center' }]}>ENROLL INDIVIDUAL</Text>
+                                <Text style={[styles.actionSubtitle, styles.verifySubtitle, { fontSize: 12 }]}>Scan Now</Text>
+                            </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.verifyButton, { flex: 1, padding: 20 }]}
-                            onPress={() => navigation.navigate('TeamScannerSetup')}
-                            activeOpacity={0.8}
-                        >
-                            <MaterialCommunityIcons name="account-group" size={32} color="#000" style={{ marginBottom: 10 }} />
-                            <Text style={[styles.actionTitle, styles.verifyTitle, { fontSize: 16 }]}>ENROLL TEAM</Text>
-                            <Text style={[styles.actionSubtitle, styles.verifySubtitle, { fontSize: 12 }]}>Team Setup</Text>
-                        </TouchableOpacity>
-                    </View>
+                            <TouchableOpacity
+                                style={[styles.actionButton, styles.verifyButton, { flex: 1, padding: 20 }]}
+                                onPress={() => navigation.navigate('TeamScannerSetup')}
+                                activeOpacity={0.8}
+                            >
+                                <MaterialCommunityIcons name="account-group" size={32} color="#000" style={{ marginBottom: 10 }} />
+                                <Text style={[styles.actionTitle, styles.verifyTitle, { fontSize: 16 }]}>ENROLL TEAM</Text>
+                                <Text style={[styles.actionSubtitle, styles.verifySubtitle, { fontSize: 12 }]}>Team Setup</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </TouchableOpacity>
 
