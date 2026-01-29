@@ -141,9 +141,60 @@ export const exportToExcel = async (): Promise<void> => {
             throw new Error('No data to export');
         }
 
+        // Deduplicate: Use a Map to ensure unique entries based on uid and event_id
+        // (Although DB has PK (uid, event_id), this is an extra safety and clean-up step)
+        const uniqueParticipantsMap = new Map<string, any>();
+
+        participants.forEach(p => {
+            const key = `${p.uid}_${p.event_id}`;
+            if (!uniqueParticipantsMap.has(key)) {
+                uniqueParticipantsMap.set(key, p);
+            }
+        });
+
+        const uniqueParticipants = Array.from(uniqueParticipantsMap.values());
+
+        // Format data to specific columns requested
+        // event_id,Name,Phone,Email,College,Department,Year,Checkin Time,Source,Payment Verified,Participated,Team Name,Team Members,UID
+        const formattedData = uniqueParticipants.map(p => {
+            // Format checkin_time to 12hr format
+            let formattedTime = '';
+            if (p.checkin_time) {
+                try {
+                    const date = new Date(p.checkin_time);
+                    formattedTime = date.toLocaleString('en-US', {
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        hour12: true,
+                        day: 'numeric',
+                        month: 'short'
+                    });
+                } catch (e) {
+                    formattedTime = p.checkin_time;
+                }
+            }
+
+            return {
+                event_id: p.event_id,
+                name: p.name,
+                phone: p.phone,
+                email: p.email,
+                college: p.college,
+                department: p.department,
+                year: p.year,
+                checkin_time: formattedTime, // Formatted 12hr time
+                source: p.source,
+                payment_verified: p.payment_verified,
+                participated: p.participated,
+                team_name: p.team_name,
+                team_members: p.team_members,
+                uid: p.uid
+            };
+        });
+
         // Create workbook and worksheet
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(participants);
+        const ws = XLSX.utils.json_to_sheet(formattedData);
         XLSX.utils.book_append_sheet(wb, ws, "Participants");
 
         // Generate base64
