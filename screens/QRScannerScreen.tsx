@@ -5,7 +5,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList, PAID_EVENTS } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
-import { getParticipantByUID, getParticipantByUIDAndEvent, incrementParticipation, insertParticipant, checkParticipantExists } from '../services/sqlite';
+import { getParticipantByUID, getParticipantByUIDAndEvent, incrementParticipation, insertParticipant, checkParticipantExists, getParticipantByEmailOrPhone } from '../services/sqlite';
 import { checkPaymentStatus, getParticipantFromFirebase, registerUserOnSpot } from '../services/firebase';
 // import { Modal, Image } from 'react-native'; // Removed redundant import
 import { RouteProp } from '@react-navigation/native';
@@ -231,7 +231,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
             }
 
             // === USER NOT FOUND ===
-            // console.log('❌ User not found locally');
+            // console.log('❌ User not found locally for this event');
 
             // Only redirect to registration if QR doesn't have email/phone
             if (!prefilledData.prefilledEmail && !prefilledData.prefilledPhone) {
@@ -245,7 +245,56 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                 return;
             }
 
-            // QR has email/phone but user not in DB
+            // === TRY TO FETCH MISSING DATA FROM DB/FIREBASE ===
+            // QR has email/phone but user not found for this event
+            // Check if we have their data from another event in local DB
+            let mergedData = { ...prefilledData };
+            let foundExistingData = false;
+
+            // 1. First try local DB lookup by email/phone (any event)
+            const localParticipant = await getParticipantByEmailOrPhone(
+                prefilledData.prefilledEmail || '',
+                prefilledData.prefilledPhone || ''
+            );
+
+            if (localParticipant) {
+                // console.log('📋 Found existing data in local DB:', localParticipant.name);
+                foundExistingData = true;
+                // Merge missing fields from local DB record
+                mergedData.prefilledName = mergedData.prefilledName || localParticipant.name || '';
+                mergedData.prefilledEmail = mergedData.prefilledEmail || localParticipant.email || '';
+                mergedData.prefilledPhone = mergedData.prefilledPhone || localParticipant.phone || '';
+                mergedData.prefilledCollege = mergedData.prefilledCollege || localParticipant.college || '';
+                mergedData.prefilledDegree = mergedData.prefilledDegree || localParticipant.degree || '';
+                mergedData.prefilledDept = mergedData.prefilledDept || localParticipant.department || '';
+                mergedData.prefilledYear = mergedData.prefilledYear || localParticipant.year || '';
+            }
+
+            // 2. If still missing data, try Firebase lookup by UID
+            if (!foundExistingData || !mergedData.prefilledDegree) {
+                try {
+                    const firebaseData = await getParticipantFromFirebase(uid);
+                    if (firebaseData) {
+                        // console.log('🔥 Found data in Firebase:', firebaseData.name || firebaseData.fullName);
+                        foundExistingData = true;
+                        mergedData.prefilledName = mergedData.prefilledName || firebaseData.name || firebaseData.fullName || '';
+                        mergedData.prefilledEmail = mergedData.prefilledEmail || firebaseData.email || '';
+                        mergedData.prefilledPhone = mergedData.prefilledPhone || firebaseData.phone || firebaseData.phoneNumber || '';
+                        mergedData.prefilledCollege = mergedData.prefilledCollege || firebaseData.college || '';
+                        mergedData.prefilledDegree = mergedData.prefilledDegree || firebaseData.degree || '';
+                        mergedData.prefilledDept = mergedData.prefilledDept || firebaseData.department || firebaseData.dept || '';
+                        mergedData.prefilledYear = mergedData.prefilledYear || firebaseData.year || '';
+                    }
+                } catch (e) {
+                    // Offline or Firebase error - continue with what we have
+                    // console.log('Firebase lookup failed, continuing with available data');
+                }
+            }
+
+            // Check if we have enough data to auto-register (need at least name)
+            const hasEnoughData = mergedData.prefilledName && (mergedData.prefilledEmail || mergedData.prefilledPhone);
+
+            // QR has email/phone but user not in DB for this event
             if (isPaidEvent) {
                 // PAID EVENT - Be suspicious, could be tampering
                 Alert.alert(
@@ -258,7 +307,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                             onPress: () => {
                                 setProcessing(false);
                                 navigation.navigate('Registration', {
-                                    ...prefilledData,
+                                    ...mergedData,
                                     autoEnroll: true,
                                     eventName: currentEvent
                                 });
@@ -268,18 +317,18 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                 );
             } else {
                 // NON-PAID EVENT - Accept silently, register them automatically
-                // console.log('📝 Auto-registering for non-paid event');
+                // console.log('📝 Auto-registering for non-paid event with merged data');
                 try {
                     await insertParticipant(
                         uid,
                         currentEvent,
-                        prefilledData.prefilledName || 'Participant',
-                        prefilledData.prefilledPhone || '',
-                        prefilledData.prefilledEmail || '',
-                        prefilledData.prefilledCollege || '',
-                        '', // degree
-                        prefilledData.prefilledDept || '',
-                        prefilledData.prefilledYear || '',
+                        mergedData.prefilledName || 'Participant',
+                        mergedData.prefilledPhone || '',
+                        mergedData.prefilledEmail || '',
+                        mergedData.prefilledCollege || '',
+                        mergedData.prefilledDegree || '', // Now fills in degree from DB/Firebase
+                        mergedData.prefilledDept || '',
+                        mergedData.prefilledYear || '',
                         'QR_AUTO',
                         0, // sync_status
                         0, // payment_verified

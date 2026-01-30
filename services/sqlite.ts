@@ -177,6 +177,36 @@ export const checkParticipantExists = async (email: string, phone: string, event
     }
 };
 
+// Get participant data by email or phone (for fetching missing data from any event)
+export const getParticipantByEmailOrPhone = async (email: string, phone: string): Promise<any> => {
+    if (Platform.OS === 'web') {
+        return webParticipants.find(p =>
+            (email && p.email === email) || (phone && p.phone === phone)
+        ) || null;
+    }
+    if (!db) return null;
+
+    try {
+        let result = null;
+        if (email) {
+            result = db.getFirstSync(
+                `SELECT * FROM participants WHERE email = ? LIMIT 1;`,
+                [email]
+            );
+        }
+        if (!result && phone) {
+            result = db.getFirstSync(
+                `SELECT * FROM participants WHERE phone = ? LIMIT 1;`,
+                [phone]
+            );
+        }
+        return result || null;
+    } catch (e) {
+        console.error("Get participant by email/phone failed", e);
+        return null;
+    }
+};
+
 // Insert a participant with simplified schema
 export const insertParticipant = (
     uid: string,
