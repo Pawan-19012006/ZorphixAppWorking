@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useEventContext } from '../navigation/EventContext';
 
 export default function TeamScannerLauncher({ navigation }: any) {
+    const { eventContext } = useEventContext();
     const [teamName, setTeamName] = useState('');
     const [teamSize, setTeamSize] = useState(3);
+
+    // Check if current event is thesis precised - allows team size up to 6
+    const isThesisPrecised = eventContext?.eventName?.toLowerCase() === 'thesisprecised';
+    const maxTeamSize = isThesisPrecised ? 6 : 4;
 
     const handleStartTeamScan = () => {
         if (!teamName.trim()) {
@@ -13,8 +19,8 @@ export default function TeamScannerLauncher({ navigation }: any) {
 
         // teamSize is already a number and controlled by UI, so less validation needed, 
         // but nice to keep safe.
-        if (teamSize < 2 || teamSize > 4) {
-            Alert.alert('Invalid Team Size', 'Team size must be between 2 and 10.');
+        if (teamSize < 2 || teamSize > maxTeamSize) {
+            Alert.alert('Invalid Team Size', `Team size must be between 2 and ${maxTeamSize}.`);
             return;
         }
 
@@ -26,7 +32,7 @@ export default function TeamScannerLauncher({ navigation }: any) {
     };
 
     const incrementSize = () => {
-        if (teamSize < 4) setTeamSize(prev => prev + 1);
+        if (teamSize < maxTeamSize) setTeamSize(prev => prev + 1);
     };
 
     const decrementSize = () => {

@@ -115,7 +115,7 @@ export default function DatabaseViewerScreen() {
     useFocusEffect(
         useCallback(() => {
             loadData();
-        }, [])
+        }, [eventContext?.eventName])
     );
 
     const onRefresh = React.useCallback(async () => {
@@ -162,10 +162,10 @@ export default function DatabaseViewerScreen() {
                                 <Text style={styles.eventTitle}>{event.event_id}</Text>
                                 <View style={[
                                     styles.badge,
-                                    event.checked_in ? styles.badgeChecked : styles.badgeUnchecked
+                                    event.sync_status ? styles.badgeChecked : styles.badgeUnchecked
                                 ]}>
                                     <Text style={styles.badgeText}>
-                                        {event.checked_in ? 'Verified' : 'Pending'}
+                                        {event.sync_status ? 'Verified' : 'Pending'}
                                     </Text>
                                 </View>
                             </View>
