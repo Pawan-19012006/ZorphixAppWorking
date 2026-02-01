@@ -103,10 +103,10 @@ export const importFromQR = async (
 
 /**
  * Import participants into local database
- * Items are [name, phone, email, team_names_json]
+ * Items are [name, phone, email, team_names_json, participated]
  */
 const importParticipantsToDatabase = async (
-    items: [string, string, string, string][],
+    items: [string, string, string, string, string][],
     eventName: string
 ): Promise<Omit<ImportResult, 'parts'>> => {
     let totalImported = 0;
@@ -115,7 +115,8 @@ const importParticipantsToDatabase = async (
 
     for (const item of items) {
         try {
-            const [name, phone, email, teamNamesJson] = item;
+            const [name, phone, email, teamNamesJson, participatedStr] = item;
+            const participated = parseInt(participatedStr, 10) || 0;
 
             // Generate UID for imported user
             // We use a prefix to distinguish, but maybe we should try to match existing format if possible?
@@ -130,6 +131,7 @@ const importParticipantsToDatabase = async (
             }
 
             // Try to insert - pass team_names_json directly (already in correct format)
+            // Set participated count from the exported data
             insertParticipant(
                 uid,
                 eventName,
@@ -143,7 +145,7 @@ const importParticipantsToDatabase = async (
                 'IMPORT', // Source
                 1, // sync_status
                 0, // payment_verified
-                0, // participated
+                participated, // participated count from peer
                 teamNamesJson || '', // team_name (JSON array string)
                 '', // team_members
                 'free' // event_type

@@ -13,9 +13,10 @@ export interface ExportData {
     total: number;
     event: string;
     timestamp: string;
-    // Array of [name, phone, email, team_names_json] for compactness
+    // Array of [name, phone, email, team_names_json, participated] for compactness
     // team_names_json is stringified array: '["Team A", "Team B"]' or '' if none
-    items: [string, string, string, string][];
+    // participated is the attendance count as string (for consistency)
+    items: [string, string, string, string, string][];
 }
 
 export interface ExportResult {
@@ -58,8 +59,8 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
             };
         }
 
-        // Prepare items for export: [name, phone, email, team_names_json]
-        const exportItems: [string, string, string, string][] = uniqueParticipants.map(p => {
+        // Prepare items for export: [name, phone, email, team_names_json, participated]
+        const exportItems: [string, string, string, string, string][] = uniqueParticipants.map(p => {
             // Normalize team_name to JSON array string
             let teamNamesJson = '';
             if (p.team_name) {
@@ -76,7 +77,8 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
                 p.name || '',
                 p.phone || '',
                 p.email || '',
-                teamNamesJson
+                teamNamesJson,
+                String(p.participated || 0) // Participated count as string
             ];
         });
 
@@ -87,18 +89,18 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
             total: 100,
             event: eventName,
             timestamp: new Date().toISOString(),
-            items: [['Test Name', '1234567890', 'test@example.com', '["Team A"]']]
+            items: [['Test Name', '1234567890', 'test@example.com', '["Team A"]', '1']]
         };
 
         const baseOverhead = JSON.stringify(testData).length - JSON.stringify(testData.items).length;
-        const itemOverhead = 4; // ["","","",""], basically
-        const avgItemSize = 80 + itemOverhead; // Estimate: Name(15) + Phone(10) + Email(25) + Teams(20) + overhead
+        const itemOverhead = 5; // ["","","","",""], basically
+        const avgItemSize = 85 + itemOverhead; // Estimate: Name(15) + Phone(10) + Email(25) + Teams(20) + Participated(5) + overhead
 
         const availableSize = MAX_QR_SIZE - baseOverhead;
         const itemsPerChunk = Math.floor(availableSize / avgItemSize);
 
         // Split items into chunks
-        const chunks: [string, string, string, string][][] = [];
+        const chunks: [string, string, string, string, string][][] = [];
         for (let i = 0; i < exportItems.length; i += itemsPerChunk) {
             chunks.push(exportItems.slice(i, i + itemsPerChunk));
         }
