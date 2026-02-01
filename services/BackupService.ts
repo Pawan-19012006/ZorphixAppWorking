@@ -50,7 +50,7 @@ export const requestStoragePermission = async (): Promise<boolean> => {
 
     if (Platform.OS !== 'android') {
         console.log('📁 Not Android, skipping permission request');
-        return true; // iOS handles permissions differently
+        return true;
     }
 
     try {
@@ -61,42 +61,34 @@ export const requestStoragePermission = async (): Promise<boolean> => {
             return true;
         }
 
-        // For Android 10+ (API 29+), we need to use SAF
-        // Request directory access via SAF - this will prompt user to select a folder
-        console.log('📁 Requesting directory permissions via SAF...');
-
         // Show alert to explain what we're doing
+        console.log('📁 Showing folder selection dialog...');
         Alert.alert(
-            '📁 Backup Location',
-            'Please select a folder (like Downloads) where Zorphix can save backup files. This ensures your data is safe even if the app is uninstalled.',
+            '📁 Select Backup Folder',
+            'Please select Downloads or another folder where Zorphix can save backup files. This ensures your data is safe even if the app is uninstalled.',
             [
                 {
                     text: 'Select Folder',
                     onPress: async () => {
                         try {
+                            console.log('📁 Opening SAF folder picker...');
                             const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
                             if (permissions.granted) {
                                 grantedDirectoryUri = permissions.directoryUri;
-                                // Save to AsyncStorage for future app launches
                                 await saveDirectoryUri(permissions.directoryUri);
                                 console.log('✅ Directory access granted:', grantedDirectoryUri);
-                                Alert.alert('✅ Success', 'Backup folder selected successfully!');
+                                Alert.alert('✅ Success', 'Backup folder selected! Backups will be saved there.');
                             } else {
-                                console.log('❌ Directory access denied');
-                                Alert.alert('⚠️ Warning', 'Backup will be saved to app internal storage only.');
+                                console.log('❌ Directory access denied by user');
+                                Alert.alert('⚠️ Warning', 'Backup will only be saved to app internal storage.');
                             }
                         } catch (err) {
                             console.log('❌ SAF permission error:', err);
+                            Alert.alert('Error', 'Failed to access folder. Backup will use app storage.');
                         }
                     }
                 },
-                {
-                    text: 'Later',
-                    style: 'cancel',
-                    onPress: () => {
-                        console.log('📁 User chose to set up backup later');
-                    }
-                }
+
             ]
         );
 
@@ -231,14 +223,31 @@ export const backupParticipantsToDownloads = async (): Promise<{ success: boolea
             });
             // Parse existing entries to get their keys (skip header)
             const lines = existingContent.split('\n').slice(1); // Skip header
-            lines.forEach(line => {
+            lines.forEach((line, idx) => {
                 if (line.trim()) {
-                    // Extract UID, Event, Email, Phone from CSV to create key
-                    const parts = line.split(',').map(p => p.replace(/"/g, '').trim());
+                    // Parse CSV properly handling quoted values with commas
+                    const parts: string[] = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            parts.push(current.replace(/"/g, '').trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    parts.push(current.replace(/"/g, '').trim()); // Last field
+
                     if (parts.length >= 5) {
+                        // CSV order: UID, Event, Name, Phone, Email
                         const [uid, eventId, name, phone, email] = parts;
                         const key = `${(email || '').toLowerCase()}_${phone || ''}_${eventId}`;
                         existingKeys.add(key);
+                        console.log(`📦 Existing entry ${idx + 1}: ${name} | Key: ${key}`);
                     }
                 }
             });
@@ -251,7 +260,9 @@ export const backupParticipantsToDownloads = async (): Promise<{ success: boolea
         // Filter out participants that already exist in backup
         const newParticipants = uniqueParticipants.filter(p => {
             const key = `${(p.email || '').toLowerCase()}_${p.phone || ''}_${p.event_id}`;
-            return !existingKeys.has(key);
+            const exists = existingKeys.has(key);
+            console.log(`📦 Checking ${p.name} | Key: ${key} | Exists: ${exists}`);
+            return !exists;
         });
 
         console.log(`📦 New participants to add: ${newParticipants.length}`);
@@ -282,13 +293,24 @@ export const backupParticipantsToDownloads = async (): Promise<{ success: boolea
         });
         console.log(`✅ Backup updated: added ${newParticipants.length} new entries to ${appDocPath}`);
 
-        // Try to also save to Downloads folder (Android only) using cached directory
+        // Also save to Downloads folder if permission was granted
         if (Platform.OS === 'android' && grantedDirectoryUri) {
             try {
-                console.log('📦 Attempting to save to selected directory:', grantedDirectoryUri);
+                console.log('📦 Saving to Downloads folder:', grantedDirectoryUri);
 
-                // For SAF, we need to create a new file each time or find existing
-                // Since SAF doesn't support easy append, we write the full content
+                // Try to find existing file in the directory and delete it first
+                try {
+                    const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(grantedDirectoryUri);
+                    const existingFile = files.find(f => f.includes('zorphix_backup'));
+                    if (existingFile) {
+                        console.log('📦 Deleting existing file:', existingFile);
+                        await FileSystem.deleteAsync(existingFile, { idempotent: true });
+                    }
+                } catch (listErr) {
+                    console.log('📦 Could not list/delete existing files:', listErr);
+                }
+
+                // Create new file with full content
                 const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
                     grantedDirectoryUri,
                     filename,
@@ -302,10 +324,10 @@ export const backupParticipantsToDownloads = async (): Promise<{ success: boolea
                 console.log('✅ Backup saved to Downloads:', fileUri);
                 return { success: true, count: newParticipants.length, path: fileUri };
             } catch (downloadErr) {
-                console.log('⚠️ Could not save to Downloads, using app directory:', downloadErr);
+                console.log('⚠️ Could not save to Downloads:', downloadErr);
             }
         } else if (Platform.OS === 'android') {
-            console.log('📦 No directory selected yet - backup only in app directory');
+            console.log('📦 No directory selected - backup only in app directory');
         }
 
         return { success: true, count: newParticipants.length, path: appDocPath };
