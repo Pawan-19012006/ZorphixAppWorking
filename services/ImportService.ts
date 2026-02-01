@@ -18,9 +18,14 @@ const parseQRData = (qrString: string): ExportData | null => {
     try {
         const data = JSON.parse(qrString) as ExportData;
 
-        // Validate structure
-        if (!data.part || !data.total || !data.event || !Array.isArray(data.items)) {
+        // Validate structure - qty is the first value, tells scanner how many QR codes to expect
+        if (!data.qty || !data.part || !data.total || !data.event || !Array.isArray(data.items)) {
             return null;
+        }
+
+        // qty should match total (they represent the same thing)
+        if (data.qty !== data.total) {
+            console.warn('QR data: qty and total mismatch, using qty as the count');
         }
 
         return data;
@@ -72,7 +77,7 @@ export const importFromQR = async (
         // Sort by part number
         buffer.sort((a, b) => a.part - b.part);
 
-        // Merge all items: [name, phone, email]
+        // Merge all items: [name, phone, email, team_names_json]
         const allItems = buffer.flatMap(item => item.items);
 
         // Import to database
@@ -98,9 +103,10 @@ export const importFromQR = async (
 
 /**
  * Import participants into local database
+ * Items are [name, phone, email, team_names_json]
  */
 const importParticipantsToDatabase = async (
-    items: [string, string, string][],
+    items: [string, string, string, string][],
     eventName: string
 ): Promise<Omit<ImportResult, 'parts'>> => {
     let totalImported = 0;
@@ -109,7 +115,7 @@ const importParticipantsToDatabase = async (
 
     for (const item of items) {
         try {
-            const [name, phone, email] = item;
+            const [name, phone, email, teamNamesJson] = item;
 
             // Generate UID for imported user
             // We use a prefix to distinguish, but maybe we should try to match existing format if possible?
@@ -123,7 +129,7 @@ const importParticipantsToDatabase = async (
                 continue;
             }
 
-            // Try to insert
+            // Try to insert - pass team_names_json directly (already in correct format)
             insertParticipant(
                 uid,
                 eventName,
@@ -138,7 +144,7 @@ const importParticipantsToDatabase = async (
                 1, // sync_status
                 0, // payment_verified
                 0, // participated
-                '', // team_name
+                teamNamesJson || '', // team_name (JSON array string)
                 '', // team_members
                 'free' // event_type
             );

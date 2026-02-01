@@ -356,18 +356,70 @@ export const getParticipantByUIDAndEvent = async (
 // Mark participant as checked in
 // DELETE markCheckedIn - Logic merged into incrementParticipation
 
+// Get participant's current teams as array
+export const getParticipantTeams = async (uid: string, eventId: string): Promise<string[]> => {
+    if (Platform.OS === 'web') {
+        const p = webParticipants.find(p => p.uid === uid && p.event_id === eventId);
+        if (p && p.team_name) {
+            try {
+                // Try parsing as JSON array
+                const teams = JSON.parse(p.team_name);
+                return Array.isArray(teams) ? teams : [p.team_name];
+            } catch {
+                // Single string, return as array
+                return p.team_name ? [p.team_name] : [];
+            }
+        }
+        return [];
+    }
+    if (!db) return [];
+
+    try {
+        const result = db.getFirstSync(
+            `SELECT team_name FROM participants WHERE uid = ? AND event_id = ?;`,
+            [uid, eventId]
+        );
+        if (result?.team_name) {
+            try {
+                const teams = JSON.parse(result.team_name);
+                return Array.isArray(teams) ? teams : [result.team_name];
+            } catch {
+                return result.team_name ? [result.team_name] : [];
+            }
+        }
+        return [];
+    } catch (e) {
+        console.error("Get participant teams failed", e);
+        return [];
+    }
+};
+
 // Mark participant as participated (verified and allowed entry)
 // !! CRITICAL: Must scope by event_id now
 // Increment participation count (Attendance)
 // Increment participation count (Attendance) with optional team name
-export const incrementParticipation = (uid: string, eventId: string, teamName?: string) => {
+// Team names are stored as JSON array: '["Team A", "Team B"]'
+export const incrementParticipation = async (uid: string, eventId: string, teamName?: string) => {
     if (Platform.OS === 'web') {
         const p = webParticipants.find(p => p.uid === uid && p.event_id === eventId);
         if (p) {
             p.participated = (p.participated || 0) + 1;
             p.checkin_time = new Date().toISOString();
             if (teamName) {
-                p.team_name = teamName;
+                // Append to teams array
+                let existingTeams: string[] = [];
+                if (p.team_name) {
+                    try {
+                        existingTeams = JSON.parse(p.team_name);
+                        if (!Array.isArray(existingTeams)) existingTeams = [p.team_name];
+                    } catch {
+                        existingTeams = p.team_name ? [p.team_name] : [];
+                    }
+                }
+                if (!existingTeams.includes(teamName)) {
+                    existingTeams.push(teamName);
+                }
+                p.team_name = JSON.stringify(existingTeams);
             }
             saveWebData();
         }
@@ -377,29 +429,49 @@ export const incrementParticipation = (uid: string, eventId: string, teamName?: 
 
     const timestamp = new Date().toISOString();
     try {
-        let query: string;
-        let params: any[];
-
         if (teamName) {
-            query = `UPDATE participants 
-                     SET participated = participated + 1, 
-                         checkin_time = ?, 
-                         team_name = ?,
-                         sync_status = 0
-                     WHERE uid = ? AND event_id = ?;`;
-            params = [timestamp, teamName, uid, eventId];
-            // //console.log(`Incremented participation: ${uid} for ${eventId} (Team: ${teamName})`);
-        } else {
-            query = `UPDATE participants 
-                     SET participated = participated + 1, 
-                         checkin_time = ?,
-                         sync_status = 0
-                     WHERE uid = ? AND event_id = ?;`;
-            params = [timestamp, uid, eventId];
-            // //console.log(`Incremented participation: ${uid} for ${eventId}`);
-        }
+            // Get existing teams first
+            const existing = db.getFirstSync(
+                `SELECT team_name FROM participants WHERE uid = ? AND event_id = ?;`,
+                [uid, eventId]
+            );
 
-        db.runSync(query, params);
+            let teams: string[] = [];
+            if (existing?.team_name) {
+                try {
+                    teams = JSON.parse(existing.team_name);
+                    if (!Array.isArray(teams)) teams = [existing.team_name];
+                } catch {
+                    teams = existing.team_name ? [existing.team_name] : [];
+                }
+            }
+
+            // Append new team if not already present
+            if (!teams.includes(teamName)) {
+                teams.push(teamName);
+            }
+
+            const teamsJson = JSON.stringify(teams);
+
+            db.runSync(
+                `UPDATE participants 
+                 SET participated = participated + 1, 
+                     checkin_time = ?, 
+                     team_name = ?,
+                     sync_status = 0
+                 WHERE uid = ? AND event_id = ?;`,
+                [timestamp, teamsJson, uid, eventId]
+            );
+        } else {
+            db.runSync(
+                `UPDATE participants 
+                 SET participated = participated + 1, 
+                     checkin_time = ?,
+                     sync_status = 0
+                 WHERE uid = ? AND event_id = ?;`,
+                [timestamp, uid, eventId]
+            );
+        }
     } catch (e) {
         console.error("Increment participation failed", e);
     }

@@ -8,12 +8,14 @@ import * as Sharing from 'expo-sharing';
 const MAX_QR_SIZE = 2200; // Increased limit slightly for better density
 
 export interface ExportData {
+    qty: number;      // Total QR count - FIRST field for scanner to determine how many to scan
     part: number;
     total: number;
     event: string;
     timestamp: string;
-    // Array of [name, phone, email] for compactness
-    items: [string, string, string][];
+    // Array of [name, phone, email, team_names_json] for compactness
+    // team_names_json is stringified array: '["Team A", "Team B"]' or '' if none
+    items: [string, string, string, string][];
 }
 
 export interface ExportResult {
@@ -56,31 +58,47 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
             };
         }
 
-        // Prepare items for export: [name, phone, email]
-        const exportItems: [string, string, string][] = uniqueParticipants.map(p => [
-            p.name || '',
-            p.phone || '',
-            p.email || ''
-        ]);
+        // Prepare items for export: [name, phone, email, team_names_json]
+        const exportItems: [string, string, string, string][] = uniqueParticipants.map(p => {
+            // Normalize team_name to JSON array string
+            let teamNamesJson = '';
+            if (p.team_name) {
+                try {
+                    // Check if already JSON array
+                    const parsed = JSON.parse(p.team_name);
+                    teamNamesJson = Array.isArray(parsed) ? p.team_name : JSON.stringify([p.team_name]);
+                } catch {
+                    // Single string, convert to array
+                    teamNamesJson = JSON.stringify([p.team_name]);
+                }
+            }
+            return [
+                p.name || '',
+                p.phone || '',
+                p.email || '',
+                teamNamesJson
+            ];
+        });
 
         // Calculate chunk size based on JSON structure overhead
         const testData: ExportData = {
+            qty: 100,
             part: 1,
             total: 100,
             event: eventName,
             timestamp: new Date().toISOString(),
-            items: [['Test Name', '1234567890', 'test@example.com']]
+            items: [['Test Name', '1234567890', 'test@example.com', '["Team A"]']]
         };
 
         const baseOverhead = JSON.stringify(testData).length - JSON.stringify(testData.items).length;
-        const itemOverhead = 4; // ["","",""], basically
-        const avgItemSize = 60 + itemOverhead; // Estimate: Name(15) + Phone(10) + Email(25) + overhead
+        const itemOverhead = 4; // ["","","",""], basically
+        const avgItemSize = 80 + itemOverhead; // Estimate: Name(15) + Phone(10) + Email(25) + Teams(20) + overhead
 
         const availableSize = MAX_QR_SIZE - baseOverhead;
         const itemsPerChunk = Math.floor(availableSize / avgItemSize);
 
         // Split items into chunks
-        const chunks: [string, string, string][][] = [];
+        const chunks: [string, string, string, string][][] = [];
         for (let i = 0; i < exportItems.length; i += itemsPerChunk) {
             chunks.push(exportItems.slice(i, i + itemsPerChunk));
         }
@@ -88,6 +106,7 @@ export const exportLocalData = async (eventName: string): Promise<ExportResult> 
         // Generate QR data for each chunk
         const qrDataArray = chunks.map((chunk, index) => {
             const data: ExportData = {
+                qty: chunks.length,  // qty is first - tells scanner how many QR codes to expect
                 part: index + 1,
                 total: chunks.length,
                 event: eventName,
@@ -193,7 +212,16 @@ export const exportToExcel = async (): Promise<void> => {
                 source: p.source,
                 payment_verified: p.payment_verified,
                 participated: p.participated,
-                team_name: p.team_name,
+                team_names: (() => {
+                    // Convert JSON array to comma-separated string for Excel readability
+                    if (!p.team_name) return '';
+                    try {
+                        const teams = JSON.parse(p.team_name);
+                        return Array.isArray(teams) ? teams.join(', ') : p.team_name;
+                    } catch {
+                        return p.team_name || '';
+                    }
+                })(),
                 team_members: p.team_members,
                 uid: p.uid
             };

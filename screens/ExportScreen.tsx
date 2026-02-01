@@ -61,7 +61,7 @@ const ExportScreen: React.FC<Props> = ({ navigation }) => {
 
             Alert.alert(
                 'Export Successful',
-                `Generated ${result.totalParts} QR code${result.totalParts > 1 ? 's' : ''} for ${result.totalEmails} email${result.totalEmails > 1 ? 's' : ''}`
+                `Generated ${result.totalParts} QR code${result.totalParts > 1 ? 's' : ''} for ${result.totalParticipants} participant${result.totalParticipants > 1 ? 's' : ''}`
             );
         } catch (error: any) {
             Alert.alert('Export Failed', error.message || 'Failed to export data');

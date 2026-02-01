@@ -131,6 +131,17 @@ export const syncOnspotToFirebase = async () => {
                 // Write to 'local_registrations' collection
                 const userRef = doc(writeDb, "local_registrations", p.uid);
 
+                // Parse team_name from JSON array string to actual array
+                let teamNames: string[] = [];
+                if (p.team_name) {
+                    try {
+                        const parsed = JSON.parse(p.team_name);
+                        teamNames = Array.isArray(parsed) ? parsed : [p.team_name];
+                    } catch {
+                        teamNames = p.team_name ? [p.team_name] : [];
+                    }
+                }
+
                 batch.set(userRef, {
                     uid: p.uid,
                     displayName: p.name,
@@ -142,6 +153,7 @@ export const syncOnspotToFirebase = async () => {
                     department: p.department || '',
                     year: p.year || '',
                     events: arrayUnion(p.event_id), // Ensure event is added
+                    team_names: teamNames, // Array of team names
                     payments: p.payment_verified ? [{
                         amount: 0,
                         date: new Date().toISOString(),

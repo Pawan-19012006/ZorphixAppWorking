@@ -5,7 +5,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList, PAID_EVENTS } from '../navigation/types';
 import { useEventContext } from '../navigation/EventContext';
-import { getParticipantByUID, getParticipantByUIDAndEvent, incrementParticipation, insertParticipant, checkParticipantExists, getParticipantByEmailOrPhone } from '../services/sqlite';
+import { getParticipantByUID, getParticipantByUIDAndEvent, incrementParticipation, insertParticipant, checkParticipantExists, getParticipantByEmailOrPhone, getParticipantTeams } from '../services/sqlite';
 import { checkPaymentStatus, getParticipantFromFirebase, registerUserOnSpot } from '../services/firebase';
 import { silentBackup } from '../services/BackupService';
 // import { Modal, Image } from 'react-native'; // Removed redundant import
@@ -77,7 +77,38 @@ export default function QRScannerScreen({ navigation, route }: Props) {
         setProcessing(false);
     };
 
-    const finalizeEntry = (participant: any) => {
+    const finalizeEntry = async (participant: any) => {
+        // Check if user is already in other teams (for team mode)
+        if (mode === 'TEAM' && teamNameParam) {
+            const existingTeams = await getParticipantTeams(participant.uid, currentEvent);
+
+            if (existingTeams.length > 0 && !existingTeams.includes(teamNameParam)) {
+                // User is already in team(s), show warning but allow adding
+                Alert.alert(
+                    "⚠️ Already in Team",
+                    `${participant.name} is already in team(s): ${existingTeams.join(', ')}\n\nAdd to "${teamNameParam}" as well?`,
+                    [
+                        {
+                            text: "Cancel",
+                            style: "cancel",
+                            onPress: resetScanState
+                        },
+                        {
+                            text: "Add Anyway",
+                            onPress: () => {
+                                proceedWithEntry(participant);
+                            }
+                        }
+                    ]
+                );
+                return;
+            }
+        }
+
+        proceedWithEntry(participant);
+    };
+
+    const proceedWithEntry = (participant: any) => {
         incrementParticipation(participant.uid, currentEvent, teamNameParam);
         // Trigger silent backup after each enrollment
         silentBackup();

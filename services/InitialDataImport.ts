@@ -63,6 +63,16 @@ export const syncParticipantsFromFirebase = async (
                 const firestoreUid = data.uid || docSnap.id;
 
                 for (const eventName of events) {
+                    // Handle team_names from Firebase (array) -> convert to JSON string for SQLite
+                    let teamNamesJson = '';
+                    const firebaseTeams = data.team_names || data.teamNames;
+                    if (Array.isArray(firebaseTeams) && firebaseTeams.length > 0) {
+                        teamNamesJson = JSON.stringify(firebaseTeams);
+                    } else if (typeof data.team_name === 'string' && data.team_name) {
+                        // Legacy single team_name field
+                        teamNamesJson = JSON.stringify([data.team_name]);
+                    }
+
                     insertParticipant(
                         firestoreUid,
                         eventName,
@@ -77,7 +87,7 @@ export const syncParticipantsFromFirebase = async (
                         1,
                         0,
                         0,
-                        '',
+                        teamNamesJson, // team_name as JSON array string
                         '',
                         'free' as 'free' | 'paid'
                     );
