@@ -128,9 +128,16 @@ export default function QRScannerScreen({ navigation, route }: Props) {
         setScanned(true);
         setProcessing(true);
 
+        console.log('='.repeat(60));
+        console.log('🔍 QR SCAN STARTED');
+        console.log('='.repeat(60));
+        console.log('📋 Current Event:', currentEvent);
+        console.log('💰 Is Paid Event:', isPaidEvent);
+        console.log('👥 Mode:', mode);
+
         try {
             const scannedData = data.trim();
-            // //console.log('SCAN:', scannedData);
+            console.log('📱 Raw Scanned Data:', scannedData);
 
             let uid = scannedData;
             let prefilledData: any = {};
@@ -138,7 +145,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
             // Try to parse JSON
             try {
                 const json = JSON.parse(scannedData);
-                // //console.log('Parsed QR JSON:', json);
+                console.log('✅ Parsed as JSON:', JSON.stringify(json, null, 2));
                 if (json.uid) {
                     uid = json.uid;
                     prefilledData = {
@@ -150,14 +157,17 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                         prefilledDept: json.dept || json.department || '',
                         prefilledYear: json.year || ''
                     };
+                    console.log('📊 Prefilled Data from QR:', JSON.stringify(prefilledData, null, 2));
                 }
             } catch (e) {
-                // Not JSON, assume raw UID
-                // //console.log('Not JSON, treating as raw UID');
+                console.log('⚠️ Not JSON, treating as raw UID');
             }
+
+            console.log('🔑 Final UID:', uid);
 
             // Check for duplicates in current team session
             if (mode === 'TEAM' && teamMembers.some(m => m.uid === uid)) {
+                console.log('❌ DUPLICATE SCAN - Already in team session');
                 Alert.alert(
                     "⚠️ Duplicate Scan",
                     "This member has already been scanned for this team.",
@@ -167,19 +177,37 @@ export default function QRScannerScreen({ navigation, route }: Props) {
             }
 
             // Check if user exists in LOCAL DB for THIS event
-            let participant = await getParticipantByUIDAndEvent(uid, currentEvent);
+            // Pass email/phone to also search by those (handles Excel import UIDs vs Firebase Auth UIDs)
+            console.log('-'.repeat(40));
+            console.log('🗄️ STEP 1: Checking LOCAL DB for user...');
+            console.log('   Searching by UID:', uid);
+            console.log('   Also searching by email:', prefilledData.prefilledEmail || '(none)');
+            console.log('   Also searching by phone:', prefilledData.prefilledPhone || '(none)');
+            let participant = await getParticipantByUIDAndEvent(
+                uid,
+                currentEvent,
+                prefilledData.prefilledEmail,
+                prefilledData.prefilledPhone
+            );
 
-            // === USER EXISTS ===
+            // === USER EXISTS IN LOCAL DB ===
             if (participant) {
-                // //console.log(`✅ User ${participant.name} found in DB.`);
+                console.log('✅ USER FOUND IN LOCAL DB!');
+                console.log('   Name:', participant.name);
+                console.log('   UID:', participant.uid);
+                console.log('   Event:', participant.event_name);
+                console.log('   Participated Count:', participant.participated);
+                console.log('   Payment Verified (local):', participant.payment_verified);
+                console.log('-'.repeat(40));
 
-                // === ALREADY ATTENDED ===
-                // === ALREADY ATTENDED (Counter Check) ===
-                // === ALREADY ATTENDED (Counter Check) ===
-                // === ALREADY ATTENDED (Counter Check) ===
-                if (participant.participated > 0) {
+                // === ALREADY ATTENDED CHECK ===
+                if (participant.participated > 1) {
+                    console.log('⚠️ USER HAS ALREADY ATTENDED!');
+                    console.log('   Times attended:', participant.participated);
+                    console.log('   Is Paid Event:', isPaidEvent);
+
                     if (isPaidEvent) {
-                        // Paid event + already attended = NO re-entry (One Ticket) - NO "Enroll Anyway"
+                        console.log('🚫 DECISION: BLOCK - Paid event, no re-entry allowed');
                         Alert.alert(
                             "🚫 Unauthorized Entry Blocked",
                             `${participant.name} has already entered ${participant.participated} time(s).\n\nEvent: ${currentEvent}\n\nPaid events allow only ONE entry per ticket.`,
@@ -187,7 +215,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                         );
                         return;
                     } else {
-                        // Non-paid event + already attended = Allow re-entry with warning
+                        console.log('⚠️ DECISION: WARN - Non-paid event, allow re-entry with warning');
                         Alert.alert(
                             "⚠️ Re-attendance Detected",
                             `${participant.name} has already attended ${participant.participated} time(s).\n\nEvent: ${currentEvent}\n\nAllow re-entry?`,
@@ -196,6 +224,7 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                                 {
                                     text: "Enroll Anyway",
                                     onPress: () => {
+                                        console.log('✅ User chose to enroll anyway');
                                         finalizeEntry(participant);
                                     }
                                 }
@@ -204,205 +233,244 @@ export default function QRScannerScreen({ navigation, route }: Props) {
                         return;
                     }
                 }
+
                 // === NOT ATTENDED YET ===
+                console.log('✅ User has NOT attended yet (participated = 0)');
+
+                // SIMPLIFIED LOGIC: If user EXISTS in local DB for this event = THEY PAID
+                // (They were either synced from Firebase after payment, or registered on-spot with payment)
                 if (isPaidEvent) {
-                    // Check payment status
-                    try {
-                        const pStatus = await checkPaymentStatus(uid, currentEvent);
-                        if (!pStatus.verified && participant.payment_verified !== 1) {
-                            // Payment not done - show treasurer QR
-                            setPendingParticipant(participant);
-                            setShowPaymentModal(true);
-                            return;
-                        }
-                    } catch (e) {
-                        // Offline fallback - check local DB
-                        if (participant.payment_verified !== 1) {
-                            setPendingParticipant(participant);
-                            setShowPaymentModal(true);
-                            return;
-                        }
-                    }
+                    console.log('💰 PAID EVENT - User is in local DB = ALREADY PAID');
+                    console.log('   ✅ No payment check needed - existence in DB = paid');
+                } else {
+                    console.log('🆓 NON-PAID EVENT - No payment check needed');
                 }
 
-                // Payment verified or non-paid event - enroll user
+                console.log('✅ DECISION: ALLOW ENTRY - Finalizing...');
                 finalizeEntry(participant);
                 return;
             }
 
-            // === USER NOT FOUND ===
-            //console.log('❌ USER NOT FOUND in local DB for this event');
-            //console.log('📊 Initial prefilledData from QR:', JSON.stringify(prefilledData, null, 2));
+            // === USER NOT FOUND IN LOCAL DB ===
+            console.log('❌ USER NOT FOUND IN LOCAL DB');
+            console.log('-'.repeat(40));
+            console.log('🗄️ STEP 2: User not in local DB for this event');
+            console.log('📊 Prefilled data from QR:', JSON.stringify(prefilledData, null, 2));
 
-            // === TRY TO FETCH MISSING DATA FROM DB/FIREBASE ===
-            // Check if we have their data from another event in local DB
-            let mergedData = { ...prefilledData };
+            // === TRY TO FETCH PAYMENT STATUS FROM FIREBASE ===
+            console.log('-'.repeat(40));
+            console.log('🔥 STEP 3: Checking Firebase for payment status...');
+            let hasPaidInFirebase = false;
 
-            // 1. First try local DB lookup by email/phone (any event)
-            //console.log('🔍 Step 1: Checking local DB by email/phone...');
-            //console.log('   Email:', prefilledData.prefilledEmail || '(none)');
-            //console.log('   Phone:', prefilledData.prefilledPhone || '(none)');
-
-            if (prefilledData.prefilledEmail || prefilledData.prefilledPhone) {
-                const localParticipant = await getParticipantByEmailOrPhone(
-                    prefilledData.prefilledEmail || '',
-                    prefilledData.prefilledPhone || ''
-                );
-
-                if (localParticipant) {
-                    //console.log('📋 Found existing data in local DB:', localParticipant.name);
-                    //console.log('   Local DB record:', JSON.stringify(localParticipant, null, 2));
-                    // Merge missing fields from local DB record
-                    mergedData.prefilledName = mergedData.prefilledName || localParticipant.name || '';
-                    mergedData.prefilledEmail = mergedData.prefilledEmail || localParticipant.email || '';
-                    mergedData.prefilledPhone = mergedData.prefilledPhone || localParticipant.phone || '';
-                    mergedData.prefilledCollege = mergedData.prefilledCollege || localParticipant.college || '';
-                    mergedData.prefilledDegree = mergedData.prefilledDegree || localParticipant.degree || '';
-                    mergedData.prefilledDept = mergedData.prefilledDept || localParticipant.department || '';
-                    mergedData.prefilledYear = mergedData.prefilledYear || localParticipant.year || '';
-                } else {
-                    //console.log('❌ No match found in local DB by email/phone');
+            try {
+                const pStatus = await checkPaymentStatus(uid, currentEvent);
+                console.log('🔥 Firebase payment response:', JSON.stringify(pStatus, null, 2));
+                if (pStatus) {
+                    hasPaidInFirebase = pStatus.verified === true;
+                    console.log('   hasPaidInFirebase:', hasPaidInFirebase);
                 }
-            } else {
-                //console.log('⚠️ Skipping local DB lookup - no email/phone in QR');
+            } catch (e) {
+                console.log('⚠️ Firebase payment check failed:', e);
+                console.log('   Continuing with hasPaidInFirebase = false');
             }
 
-            // 2. Try Firebase lookup by UID if still missing critical data
-            //console.log('🔍 Step 2: Checking if Firebase lookup needed...');
-            //console.log('   Name:', mergedData.prefilledName || '(missing)');
-            //console.log('   College:', mergedData.prefilledCollege || '(missing)');
+            console.log('-'.repeat(40));
+            console.log('📝 STEP 4: Processing new user entry...');
+            console.log('   hasPaidInFirebase:', hasPaidInFirebase);
+            console.log('   isPaidEvent:', isPaidEvent);
 
-            if (!mergedData.prefilledName || !mergedData.prefilledCollege) {
-                //console.log('🔥 Attempting Firebase lookup by UID:', uid);
-                try {
-                    const firebaseData = await getParticipantFromFirebase(uid);
-                    if (firebaseData) {
-                        //console.log('🔥 Found data in Firebase:', JSON.stringify(firebaseData, null, 2));
-                        mergedData.prefilledName = mergedData.prefilledName || firebaseData.name || firebaseData.fullName || '';
-                        mergedData.prefilledEmail = mergedData.prefilledEmail || firebaseData.email || '';
-                        mergedData.prefilledPhone = mergedData.prefilledPhone || firebaseData.phone || firebaseData.phoneNumber || '';
-                        mergedData.prefilledCollege = mergedData.prefilledCollege || firebaseData.college || '';
-                        mergedData.prefilledDegree = mergedData.prefilledDegree || firebaseData.degree || '';
-                        mergedData.prefilledDept = mergedData.prefilledDept || firebaseData.department || firebaseData.dept || '';
-                        mergedData.prefilledYear = mergedData.prefilledYear || firebaseData.year || '';
+            await processNewUserEntry(uid, prefilledData, hasPaidInFirebase);
+
+            async function processNewUserEntry(uid: string, prefilledData: any, alreadyPaid: boolean) {
+                console.log('-'.repeat(40));
+                console.log('📝 processNewUserEntry() called');
+                console.log('   UID:', uid);
+                console.log('   alreadyPaid:', alreadyPaid);
+
+                // Merge data from local DB and Firebase
+                let mergedData = { ...prefilledData };
+
+                // 1. First try local DB lookup by email/phone (any event)
+                console.log('🔍 Checking local DB by email/phone for other events...');
+                if (prefilledData.prefilledEmail || prefilledData.prefilledPhone) {
+                    const localParticipant = await getParticipantByEmailOrPhone(
+                        prefilledData.prefilledEmail || '',
+                        prefilledData.prefilledPhone || ''
+                    );
+
+                    if (localParticipant) {
+                        console.log('✅ Found user in local DB (other event):', localParticipant.name);
+                        mergedData.prefilledName = mergedData.prefilledName || localParticipant.name || '';
+                        mergedData.prefilledEmail = mergedData.prefilledEmail || localParticipant.email || '';
+                        mergedData.prefilledPhone = mergedData.prefilledPhone || localParticipant.phone || '';
+                        mergedData.prefilledCollege = mergedData.prefilledCollege || localParticipant.college || '';
+                        mergedData.prefilledDegree = mergedData.prefilledDegree || localParticipant.degree || '';
+                        mergedData.prefilledDept = mergedData.prefilledDept || localParticipant.department || '';
+                        mergedData.prefilledYear = mergedData.prefilledYear || localParticipant.year || '';
                     } else {
-                        //console.log('❌ No data found in Firebase for UID:', uid);
+                        console.log('❌ No match in local DB by email/phone');
                     }
-                } catch (e) {
-                    //console.log('❌ Firebase lookup failed:', e);
+                } else {
+                    console.log('⚠️ No email/phone in QR to lookup');
                 }
-            } else {
-                //console.log('✅ Skipping Firebase lookup - already have name and college');
-            }
 
-            // === CRITICAL DATA CHECK ===
-            // Critical fields: name, email/phone, college
-            // Non-critical fields (can be empty): degree, department, year
-            //console.log('📊 Step 3: CRITICAL DATA CHECK');
-            //console.log('   Final mergedData:', JSON.stringify(mergedData, null, 2));
-            //console.log('   Name:', mergedData.prefilledName || '(MISSING!)');
-            //console.log('   Email:', mergedData.prefilledEmail || '(none)');
-            //console.log('   Phone:', mergedData.prefilledPhone || '(none)');
-            //console.log('   College:', mergedData.prefilledCollege || '(MISSING!)');
-            //console.log('   Degree:', mergedData.prefilledDegree || '(empty - OK)');
-            //console.log('   Dept:', mergedData.prefilledDept || '(empty - OK)');
-            //console.log('   Year:', mergedData.prefilledYear || '(empty - OK)');
+                // 2. Try Firebase lookup by UID if still missing critical data
+                console.log('🔍 Checking if Firebase lookup needed for user data...');
+                console.log('   Has name:', !!mergedData.prefilledName);
+                console.log('   Has college:', !!mergedData.prefilledCollege);
 
-            const hasCriticalData =
-                mergedData.prefilledName &&
-                (mergedData.prefilledEmail || mergedData.prefilledPhone) &&
-                mergedData.prefilledCollege;
-
-            //console.log('🎯 hasCriticalData:', hasCriticalData);
-            //console.log('   - Has name:', !!mergedData.prefilledName);
-            //console.log('   - Has email OR phone:', !!(mergedData.prefilledEmail || mergedData.prefilledPhone));
-            //console.log('   - Has college:', !!mergedData.prefilledCollege);
-
-            // Only redirect to registration if CRITICAL data is missing
-            if (!hasCriticalData) {
-                //console.log('🚨 CRITICAL DATA MISSING - Redirecting to Registration page');
-                setProcessing(false);
-                navigation.navigate('Registration', {
-                    ...mergedData,
-                    autoEnroll: true,
-                    eventName: currentEvent
-                });
-                return;
-            }
-
-            // === HAS ALL CRITICAL DATA - PROCEED ===
-            //console.log('✅ All critical data available!');
-            //console.log('   isPaidEvent:', isPaidEvent);
-
-            if (isPaidEvent) {
-                // PAID EVENT - User not in DB means they haven't paid
-                // Show payment modal directly instead of registration page
-                //console.log('💰 PAID EVENT - User not in DB, showing payment modal');
-
-                // Create a pending participant object for payment
-                const pendingParticipantData = {
-                    uid: uid,
-                    name: mergedData.prefilledName,
-                    email: mergedData.prefilledEmail || '',
-                    phone: mergedData.prefilledPhone || '',
-                    college: mergedData.prefilledCollege || '',
-                    degree: mergedData.prefilledDegree || '',
-                    department: mergedData.prefilledDept || '',
-                    year: mergedData.prefilledYear || ''
-                };
-                //console.log('📋 Setting pending participant for payment:', JSON.stringify(pendingParticipantData, null, 2));
-
-                setPendingParticipant(pendingParticipantData);
-                setShowPaymentModal(true);
-            } else {
-                // NON-PAID EVENT - Accept silently, register them automatically
-                //console.log('🆓 NON-PAID EVENT - Auto-registering with available data');
-                try {
-                    await insertParticipant(
-                        uid,
-                        currentEvent,
-                        mergedData.prefilledName || 'Participant',
-                        mergedData.prefilledPhone || '',
-                        mergedData.prefilledEmail || '',
-                        mergedData.prefilledCollege || '',
-                        mergedData.prefilledDegree || '', // Non-critical, can be empty
-                        mergedData.prefilledDept || '', // Non-critical, can be empty
-                        mergedData.prefilledYear || '', // Non-critical, can be empty
-                        'QR_AUTO',
-                        0, // sync_status
-                        0, // payment_verified
-                        0, // participated
-                        teamNameParam, // team_name
-                        '', // team_members
-                        'free' // event_type
-                    );
-                    //console.log('✅ Inserted participant into DB');
-
-                    // Fetch the newly inserted participant
-                    const newParticipant = await getParticipantByUIDAndEvent(uid, currentEvent);
-                    //console.log('📋 Fetched new participant:', newParticipant?.name);
-                    if (newParticipant) {
-                        //console.log('🎉 Finalizing entry for:', newParticipant.name);
-                        finalizeEntry(newParticipant);
+                if (!mergedData.prefilledName || !mergedData.prefilledCollege) {
+                    console.log('🔥 Fetching user data from Firebase...');
+                    try {
+                        const firebaseData = await getParticipantFromFirebase(uid);
+                        if (firebaseData) {
+                            console.log('✅ Found user data in Firebase:', JSON.stringify(firebaseData, null, 2));
+                            mergedData.prefilledName = mergedData.prefilledName || firebaseData.name || firebaseData.fullName || '';
+                            mergedData.prefilledEmail = mergedData.prefilledEmail || firebaseData.email || '';
+                            mergedData.prefilledPhone = mergedData.prefilledPhone || firebaseData.phone || firebaseData.phoneNumber || '';
+                            mergedData.prefilledCollege = mergedData.prefilledCollege || firebaseData.college || '';
+                            mergedData.prefilledDegree = mergedData.prefilledDegree || firebaseData.degree || '';
+                            mergedData.prefilledDept = mergedData.prefilledDept || firebaseData.department || firebaseData.dept || '';
+                            mergedData.prefilledYear = mergedData.prefilledYear || firebaseData.year || '';
+                        } else {
+                            console.log('❌ No user data in Firebase for UID:', uid);
+                        }
+                    } catch (e) {
+                        console.log('❌ Firebase user lookup failed:', e);
                     }
-                } catch (error) {
-                    console.error('❌ Auto-registration error:', error);
-                    Alert.alert(
-                        "Error",
-                        "Failed to auto-register participant.",
-                        [{ text: "OK", onPress: resetScanState }]
-                    );
+                } else {
+                    console.log('✅ Already have name and college, skipping Firebase lookup');
+                }
+
+                // === CRITICAL DATA CHECK ===
+                console.log('-'.repeat(40));
+                console.log('📊 CRITICAL DATA CHECK:');
+                console.log('   Name:', mergedData.prefilledName || '(MISSING)');
+                console.log('   Email:', mergedData.prefilledEmail || '(none)');
+                console.log('   Phone:', mergedData.prefilledPhone || '(none)');
+                console.log('   College:', mergedData.prefilledCollege || '(MISSING)');
+
+                const hasCriticalData =
+                    mergedData.prefilledName &&
+                    (mergedData.prefilledEmail || mergedData.prefilledPhone) &&
+                    mergedData.prefilledCollege;
+
+                console.log('   Has critical data:', hasCriticalData);
+
+                // Only redirect to registration if CRITICAL data is missing
+                if (!hasCriticalData) {
+                    console.log('🚨 MISSING CRITICAL DATA - Redirecting to Registration');
+                    setProcessing(false);
+                    navigation.navigate('Registration', {
+                        ...mergedData,
+                        autoEnroll: true,
+                        eventName: currentEvent
+                    });
+                    return;
+                }
+
+                console.log('✅ All critical data present');
+                console.log('-'.repeat(40));
+                console.log('🎯 FINAL DECISION:');
+                console.log('   isPaidEvent:', isPaidEvent);
+                console.log('   alreadyPaid:', alreadyPaid);
+
+                // === HAS ALL CRITICAL DATA - PROCEED ===
+                if (isPaidEvent) {
+                    if (alreadyPaid) {
+                        console.log('✅ PAID EVENT + ALREADY PAID = Allow entry directly');
+                        try {
+                            console.log('📝 Inserting participant into local DB...');
+                            await insertParticipant(
+                                uid,
+                                currentEvent,
+                                mergedData.prefilledName || 'Participant',
+                                mergedData.prefilledPhone || '',
+                                mergedData.prefilledEmail || '',
+                                mergedData.prefilledCollege || '',
+                                mergedData.prefilledDegree || '',
+                                mergedData.prefilledDept || '',
+                                mergedData.prefilledYear || '',
+                                'QR_AUTO',
+                                0,
+                                1, // payment_verified = 1
+                                0,
+                                teamNameParam,
+                                '',
+                                'paid'
+                            );
+                            console.log('✅ Participant inserted successfully');
+                            const newParticipant = await getParticipantByUIDAndEvent(uid, currentEvent);
+                            if (newParticipant) {
+                                console.log('✅ Finalizing entry for:', newParticipant.name);
+                                finalizeEntry(newParticipant);
+                            }
+                        } catch (error) {
+                            console.error('❌ Auto-registration error:', error);
+                            Alert.alert("Error", "Failed to register participant.", [{ text: "OK", onPress: resetScanState }]);
+                        }
+                    } else {
+                        console.log('💳 PAID EVENT + NOT PAID = Show Treasurer QR');
+                        const pendingParticipantData = {
+                            uid: uid,
+                            name: mergedData.prefilledName,
+                            email: mergedData.prefilledEmail || '',
+                            phone: mergedData.prefilledPhone || '',
+                            college: mergedData.prefilledCollege || '',
+                            degree: mergedData.prefilledDegree || '',
+                            department: mergedData.prefilledDept || '',
+                            year: mergedData.prefilledYear || ''
+                        };
+                        console.log('📋 Pending participant:', JSON.stringify(pendingParticipantData, null, 2));
+                        setPendingParticipant(pendingParticipantData);
+                        setShowPaymentModal(true);
+                    }
+                } else {
+                    console.log('🆓 NON-PAID EVENT = Auto-register and allow');
+                    try {
+                        console.log('📝 Inserting participant into local DB...');
+                        await insertParticipant(
+                            uid,
+                            currentEvent,
+                            mergedData.prefilledName || 'Participant',
+                            mergedData.prefilledPhone || '',
+                            mergedData.prefilledEmail || '',
+                            mergedData.prefilledCollege || '',
+                            mergedData.prefilledDegree || '',
+                            mergedData.prefilledDept || '',
+                            mergedData.prefilledYear || '',
+                            'QR_AUTO',
+                            0,
+                            0,
+                            0,
+                            teamNameParam,
+                            '',
+                            'free'
+                        );
+                        console.log('✅ Participant inserted successfully');
+                        const newParticipant = await getParticipantByUIDAndEvent(uid, currentEvent);
+                        if (newParticipant) {
+                            console.log('✅ Finalizing entry for:', newParticipant.name);
+                            finalizeEntry(newParticipant);
+                        }
+                    } catch (error) {
+                        console.error('❌ Auto-registration error:', error);
+                        Alert.alert("Error", "Failed to auto-register participant.", [{ text: "OK", onPress: resetScanState }]);
+                    }
                 }
             }
 
         } catch (error) {
-            console.error("Scan error:", error);
+            console.error("❌ SCAN ERROR:", error);
             Alert.alert(
                 "Error",
                 "Failed to process QR code",
                 [{ text: "OK", onPress: resetScanState }]
             );
         } finally {
+            console.log('='.repeat(60));
+            console.log('🔍 QR SCAN COMPLETED');
+            console.log('='.repeat(60));
             if (!showPaymentModal) {
                 setProcessing(false);
             }

@@ -154,38 +154,52 @@ export const getAdminEventMapping = async (email: string): Promise<string | null
 };
 
 // Check payment status for a user's event registration
+// LOGIC: If user exists in Firebase with this event in their events array = PAID
+// (The events array is only populated after successful payment)
 export const checkPaymentStatus = async (
     userUid: string,
     eventName: string
-): Promise<{ isPaid: boolean; verified: boolean }> => {
+): Promise<{ isPaid: boolean; verified: boolean; inEventsArray: boolean }> => {
+    console.log('🔥 checkPaymentStatus called:', { userUid, eventName });
     try {
         const userDoc = await getDoc(doc(db, "registrations", userUid));
 
         if (!userDoc.exists()) {
-            return { isPaid: false, verified: false };
+            console.log('🔥 User not found in Firebase registrations');
+            return { isPaid: false, verified: false, inEventsArray: false };
         }
 
         const data = userDoc.data();
+        console.log('🔥 Firebase user data found:', JSON.stringify(data, null, 2));
+
+        const events = data.events || [];
         const payments = data.payments || [];
 
-        // Check if any payment includes this event
+        console.log('🔥 User events array:', events);
+        console.log('🔥 User payments array:', payments);
+
+        // PRIMARY CHECK: Is this event in their events array?
+        // If yes, they registered (and paid if it's a paid event)
+        const inEventsArray = events.includes(eventName);
+        console.log(`🔥 Event "${eventName}" in events array:`, inEventsArray);
+
+        if (inEventsArray) {
+            console.log('✅ User HAS this event in their events array = PAID/REGISTERED');
+            return { isPaid: true, verified: true, inEventsArray: true };
+        }
+
+        // SECONDARY CHECK: Check payments array for verified payment
         for (const payment of payments) {
             if (payment.eventNames?.includes(eventName) && payment.verified) {
-                return { isPaid: true, verified: true };
+                console.log('✅ Found verified payment for this event');
+                return { isPaid: true, verified: true, inEventsArray: false };
             }
         }
 
-        // Check if event is in their registered events (might be free)
-        const events = data.events || [];
-        if (events.includes(eventName)) {
-            // Event is registered, check if it's a paid event
-            // Free events don't need payment verification
-            return { isPaid: false, verified: true };
-        }
-
-        return { isPaid: false, verified: false };
+        console.log('❌ Event NOT found in events array or payments');
+        return { isPaid: false, verified: false, inEventsArray: false };
     } catch (error) {
-        console.error("Failed to check payment status:", error);
+        console.error("❌ Failed to check payment status:", error);
         throw error;
     }
 };

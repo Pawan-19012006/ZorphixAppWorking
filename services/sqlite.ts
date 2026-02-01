@@ -282,22 +282,71 @@ export const getParticipantByUID = async (uid: string): Promise<any> => {
 };
 
 // Get participant by UID and event for specific verification
-export const getParticipantByUIDAndEvent = async (uid: string, eventId: string): Promise<any> => {
+// Also searches by email/phone if UID doesn't match (handles Excel import UIDs vs Firebase Auth UIDs)
+export const getParticipantByUIDAndEvent = async (
+    uid: string,
+    eventId: string,
+    email?: string,
+    phone?: string
+): Promise<any> => {
+    console.log('🔍 getParticipantByUIDAndEvent called:', { uid, eventId, email, phone });
+
     if (Platform.OS === 'web') {
+        // First try by UID
         let p = webParticipants.find(p => p.uid === uid && p.event_id === eventId);
         if (!p) {
             p = webParticipants.find(p => p.uid.startsWith(uid) && p.event_id === eventId);
         }
+        // If not found by UID, try by email/phone
+        if (!p && (email || phone)) {
+            p = webParticipants.find(p =>
+                p.event_id === eventId &&
+                ((email && p.email === email) || (phone && p.phone === phone))
+            );
+        }
+        console.log('🔍 Web search result:', p ? `Found: ${p.name}` : 'Not found');
         return p || null;
     }
     if (!db) return null;
 
     try {
-        const result = db.getFirstSync(
+        // First try by UID (exact match or prefix match)
+        let result = db.getFirstSync(
             `SELECT * FROM participants WHERE (uid = ? OR uid LIKE ?) AND event_id = ?;`,
             [uid, `${uid}_%`, eventId]
         );
-        return result || null;
+
+        if (result) {
+            console.log('✅ Found by UID:', result.name, '| DB UID:', result.uid);
+            return result;
+        }
+
+        // If not found by UID, try by email
+        if (email) {
+            result = db.getFirstSync(
+                `SELECT * FROM participants WHERE email = ? AND event_id = ?;`,
+                [email, eventId]
+            );
+            if (result) {
+                console.log('✅ Found by EMAIL:', result.name, '| DB UID:', result.uid);
+                return result;
+            }
+        }
+
+        // If still not found, try by phone
+        if (phone) {
+            result = db.getFirstSync(
+                `SELECT * FROM participants WHERE phone = ? AND event_id = ?;`,
+                [phone, eventId]
+            );
+            if (result) {
+                console.log('✅ Found by PHONE:', result.name, '| DB UID:', result.uid);
+                return result;
+            }
+        }
+
+        console.log('❌ Not found by UID, email, or phone');
+        return null;
     } catch (e) {
         console.error("Get participant by UID and event failed", e);
         return null;
